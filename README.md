@@ -10,6 +10,8 @@ License and terms of agreement
 
 Muonic is distributed under the terms of GPL (GNU Public License). With the use of the software you accept the conditions of the GPL. This means also that the authors can not be made responsible for any damage of any kind to hard- or software.
 
+The Muonic logo is provided with a big thanks from The Particle Zoo http://www.particlezoo.net./
+
 muonic setup and installation
 -----------------------------------
 
