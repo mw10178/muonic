@@ -43,22 +43,35 @@ def main(args, logger):
     :param args: arguments
     :param logger: logger object
     """
+    # Defines path to data as global variable
     set_data_directory(args.data_path)
+    # Tries to create the data directory if it is not present
     setup_data_directory(args.data_path)
 
+    # QApplication manages the GUI application's control flow and main settings
+    # there is always one QApplication object
     root = QtGui.QApplication(sys.argv)
+    # Shall the program be closed if the last window will be closed?
     root.setQuitOnLastWindowClosed(True)
 
     if args.port is not None:
+        # client works with zmq socket
         daq = DAQClient(port=args.port, logger=logger)
     else:
+        # provider works with multiprocessing.Queue
         daq = DAQProvider(sim=args.sim, logger=logger)
+    # Both works multprocessing and the read and write function are executed
+    # in an endless loop.
+    # daq provides get and put functions to communicate with the DAQ Card
+
 
     # Set up the GUI part
     gui = Application(daq, logger, args)
     gui.show()
     root.exec_()
-
+    
+    
+#---------------------------
 if __name__ == '__main__':
     # handle ctrl+c
     signal.signal(signal.SIGINT, signal.SIG_DFL)

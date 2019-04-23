@@ -16,20 +16,52 @@ except ImportError:
     # DAQMissingDependencyError will be raised when trying to use zmq
     pass
 
-from muonic.daq import DAQIOError, DAQMissingDependencyError
+# from exception.py
+from muonic.daq import DAQIOError, DAQMissingDependencyError 
+# from simulation.py & connection.py 
 from muonic.daq import DAQSimulationConnection, DAQConnection
 
+"""
+#################################################################
+"""
 
 class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
     """
     Base class defining the public API and helpers for the
     DAQ provider implementations
-
-    :param logger: logger object
-    :type logger: logging.Logger
+    
+    Params:
+    =======
+        logger: logging.Logger, default=None
+    
+    Functions:
+    ==========
+        __init__(logger=None):
+    
+        get(*args):
+            "Get something from the DAQ."
+    
+        data_available(*args):
+            "Send information to the DAQ."
+            
+        _validate_line(line):
+            "Controles the occurence of unwanted character."
+            
+    
+    Attributes:
+    ===========
+        LINE_PATTERN: re (regular expression) object
+            "To allow fast validation of the encoded input string from the 
+            DAQ Card."
+        
     """
-
+    
     LINE_PATTERN = re.compile("^[a-zA-Z0-9+-.,:()=$/#?!%_@*|~' ]*[\n\r]*$")
+    # ^ means all not listed characters in the '[ .. ]' are allowed, * means 
+    # that the number those previous listed characters occure is not 
+    # important for invalidity. Further \n and \r are allowed in arbitrary 
+    # number. $ defined as either the end of the string, or any location 
+    # followed by a newline character
 
     def __init__(self, logger=None):
         if logger is None:
@@ -41,9 +73,14 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
         """
         Get something from the DAQ.
 
-        :param args: queue arguments
-        :type args: list
-        :returns: str or None
+        Params:
+        =======
+            *args: list
+                Queue arguments
+
+        Returns:
+        ========
+            string or None
         """
         return
 
@@ -52,9 +89,14 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
         """
         Send information to the DAQ.
 
-        :param args: queue arguments
-        :type args: list
-        :returns: None
+        Params:
+        =======
+            *args: list
+                Queue arguments
+
+        Returns:
+        ========
+            string or None
         """
         return
 
@@ -63,18 +105,29 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
         """
         Tests if data is available from the DAQ.
 
-        :returns: int or bool
+        Returns:
+        ========
+            int or Bool
         """
         return
 
     def _validate_line(self, line):
         """
-        Validate line against pattern. Returns None it the provided line is
-        invalid or the line if it is valid.
-
-        :param line: line to validate
-        :type line: str
-        :returns: str or None
+        Validate line against pattern. Returns None if the provided line is
+        invalid, or the line if it is valid.
+        
+        Params:
+        =======
+            line: string
+                String to be validated.
+                Following char are not allowed in arb. number:
+                    'a-z', 'A-Z', '0-9' and +-.,:()=$/#?!%_@*|~'
+                The appearance of '\n' and '\r' is irrelevant.     
+        
+        Returns:
+        ========
+            string (valid) or None (not valid string from DAQ)
+        
         """
         if self.LINE_PATTERN.match(line) is None:
             # Do something more sensible here, like stopping the DAQ then
@@ -84,6 +137,10 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
             return None
         return line
 
+
+"""
+#################################################################
+"""
 
 class DAQProvider(BaseDAQProvider):
     """
@@ -161,6 +218,10 @@ class DAQProvider(BaseDAQProvider):
             size = not self.out_queue.empty()
         return size
 
+
+"""
+#################################################################
+"""
 
 class DAQClient(BaseDAQProvider):
     """
