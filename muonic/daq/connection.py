@@ -101,7 +101,8 @@ class BaseDAQConnection(with_metaclass(abc.ABCMeta, object)):
         '''
         tty = subprocess.Popen(
                 [script], stdout=subprocess.PIPE).communicate()[0]
-        return "/dev/%s" % tty.rstrip('\n')
+        
+        return "/dev/%s" % tty.decode().rstrip('\n')
 
     def get_serial_port(self):
         #    def get_serial_port(ID_SERIAL):
@@ -261,7 +262,7 @@ class DAQConnection(BaseDAQConnection):
             try:
                 if self.serial_port.inWaiting():
                     while self.serial_port.inWaiting():
-                        self.out_queue.put(self.serial_port.readline().strip())
+                        self.out_queue.put((self.serial_port.readline().strip()).decode())
                     sleep_time = max(sleep_time / 2, min_sleep_time)
                 else:
                     sleep_time = min(1.5 * sleep_time, max_sleep_time)
@@ -287,16 +288,16 @@ class DAQConnection(BaseDAQConnection):
             try:
                 while self.in_queue.qsize():
                     try:
-                        self.serial_port.write(str(self.in_queue.get(0)) +
-                                               "\r")
+                        self.serial_port.write((str(self.in_queue.get(0)) +
+                                               "\r").encode())
                     except (queue.Empty, serial.SerialTimeoutException):
                         pass
             except NotImplementedError:
                 self.logger.debug("Running Mac version of muonic.")
                 while True:
                     try:
-                        self.serial_port.write(str(self.in_queue.get(
-                                timeout=0.01)) + "\r")
+                        self.serial_port.write((str(self.in_queue.get(
+                                timeout=0.01)) + "\r").encode())
                     except (queue.Empty, serial.SerialTimeoutException):
                         pass
             sleep(0.1)
@@ -395,7 +396,7 @@ class DAQServer(BaseDAQConnection):
             try:
                 if self.serial_port.inWaiting():
                     while self.serial_port.inWaiting():
-                        self.socket.send(self.serial_port.readline().strip())
+                        self.socket.send((self.serial_port.readline().strip()).decode())
                     sleep_time = max(sleep_time / 2, min_sleep_time)
                 else:
                     sleep_time = min(1.5 * sleep_time, max_sleep_time)
@@ -418,7 +419,7 @@ class DAQServer(BaseDAQConnection):
         """
         while self.running:
             msg = self.socket.recv_string()
-            self.serial_port.write(str(msg) + "\r")
+            self.serial_port.write((str(msg) + "\r").encode())
             sleep(0.1)
 
 

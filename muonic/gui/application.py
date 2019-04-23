@@ -24,7 +24,13 @@ from muonic.util import update_setting, get_setting
 from muonic.util import apply_default_settings, get_muonic_filename
 from muonic.util import get_data_directory
 
+"""
+########### NEW CODE
+"""
 
+"""
+###########
+"""
 class Application(QtGui.QMainWindow):
     """
     The main application
