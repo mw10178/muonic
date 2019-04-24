@@ -64,7 +64,7 @@ def main(args, logger):
     # in an endless loop.
     # daq provides get and put functions to communicate with the DAQ Card
 
-
+    
     # Set up the GUI part
     gui = Application(daq, logger, args)
     gui.show()

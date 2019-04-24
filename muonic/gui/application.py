@@ -132,6 +132,8 @@ class Application(QtGui.QMainWindow):
         # timer to periodically call processIncoming and check
         # what is in the queue
         self.timer = QtCore.QTimer()
+        # connect, connect QObject arg1 (sender) with arg3 (receiver)
+        # Signal or Slot macros must be used to specify the connecting methods
         QtCore.QObject.connect(self.timer,
                                QtCore.SIGNAL("timeout()"),
                                self.process_incoming)
