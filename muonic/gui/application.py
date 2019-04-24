@@ -35,12 +35,114 @@ class Application(QtGui.QMainWindow):
     """
     The main application
 
+
+    __init__:
+        daq:
+        logger:
+        opts:
+
+    get_configuration_from_daq_card:
+        Get the initial threshold and channel configuration
+        from the DAQ card.
+
+    Setups:
+    =======
+
+        setup_tab_widgets:
+            Creates the widgets and adds tabs
+
+        setup_plot_style:
+            Setup the plot style depending on screen size.
+
+        setup_menus:
+            Setup the menu bar and populate menus.
+
+    Widget Functions:
+    =================
+
+        add_widget:
+            Adds widget to the store.
+
+            name:
+            label:
+            widget:
+
+        have_widget:
+            Returns true if widget with name exists, False otherwise.
+
+            name:
+
+        get_widget(name)
+            Retrieved a widget from the store.
+
+        is_widget_active(name)
+            Returns True if the widget exists and is active, False otherwise
+
+
+    Menus:
+    ======
+
+        open_muonic_data:
+            Opens the folder with the data files. Usually in $HOME/muonic_data
+
+        threshold_menu:
+            Shows thresholds dialog.
+
+
+        config_menu:
+            Show the channel config dialog.
+
+        advanced_menu:
+            Show a config dialog for advanced options, ie. gate width,
+            interval for the rate measurement, options for writing pulse file
+            and the write_daq_status option.
+
+        help_menu:
+            Show a simple help dialog.
+
+        about_menu:
+            Show a link to the online documentation.
+
+        sphinxdoc_menu:
+            Show the sphinx documentation that comes with muonic in a browser.
+
+        manualdoc_menu:
+            Show the manual that comes with muonic in a pdf viewer.
+
+    get_thresholds_from_msg:
+        Explicitly scan message for threshold information.
+
+        msg:
+
+    get_channels_from_msg:
+        Explicitly scan message for channel information.
+        Return True if found, False otherwise.
+
+        msg:
+
+    process_incoming:
+        This functions gets everything out of the daq.
+        Handles all the messages currently in the daq
+        and passes the results to the corresponding widgets.
+
+    calculate_pulses:
+        Runs the calculate function of pulse widgets if they are active and pulses are available.
+
+    update_dynamic:
+        Update dynamic widgets.
+
+    closeEvent:
+        Is triggered when it is attempted to close the application.
+        Will perform some cleanup before closing.
+
+        ev:
+
     :param daq: daq card connection
     :type daq: muonic.daq.provider.BaseDAQProvider
     :param logger: logger object
     :type logger: logging.Logger
-    :param opts: command line options
     :type opts: Namespace
+    :param opts: command line options
     """
     def __init__(self, daq, logger, opts):
         QtGui.QMainWindow.__init__(self)
@@ -403,7 +505,7 @@ class Application(QtGui.QMainWindow):
                                  (cmd.split()[1], cmd.split()[2]))
 
         self.daq.put('TL')
-  
+
     def open_muonic_data(self):
         """
         Opens the folder with the data files. Usually in $HOME/muonic_data
@@ -484,12 +586,12 @@ class Application(QtGui.QMainWindow):
 
             if not coincidence_set:
                 tmp_msg += "00"
-    
+
             # now calculate the correct expression for the first
             # four bits
             self.logger.debug("The first four bits are set to %s" % tmp_msg)
             msg = "WC 00 %s" % hex(int(''.join(tmp_msg), 2))[-1].capitalize()
-    
+
             channel_set = False
             enable = ['0', '0', '0', '0']
 
@@ -497,7 +599,7 @@ class Application(QtGui.QMainWindow):
                 if active:
                     enable[i] = '1'
                     channel_set = True
-            
+
             if channel_set:
                 msg += hex(int(''.join(enable), 2))[-1].capitalize()
             else:
@@ -518,7 +620,7 @@ class Application(QtGui.QMainWindow):
                                   (name, coincidence_config[i]))
 
         self.daq.put("DC")
-           
+
     def advanced_menu(self):
         """
         Show a config dialog for advanced options, ie. gate width,
@@ -585,7 +687,7 @@ class Application(QtGui.QMainWindow):
         :returns: None
         """
         HelpDialog().exec_()
-        
+
     def about_menu(self):
         """
         Show a link to the online documentation.
@@ -598,8 +700,7 @@ class Application(QtGui.QMainWindow):
 
     def sphinxdoc_menu(self):
         """
-        Show the sphinx documentation that comes with muonic in a
-        browser.
+        Show the sphinx documentation that comes with muonic in a browser.
 
         :returns: None
         """
@@ -646,7 +747,7 @@ class Application(QtGui.QMainWindow):
             return True
         else:
             return False
-        
+
     def get_channels_from_msg(self, msg):
         """
         Explicitly scan message for channel information.
@@ -656,7 +757,7 @@ class Application(QtGui.QMainWindow):
         DC gives:
 
         DC C0=23 C1=71 C2=0A C3=00
-        
+
         Which has the meaning:
 
         MM - 00 -> 8bits for channel enable/disable, coincidence and veto
@@ -771,14 +872,14 @@ class Application(QtGui.QMainWindow):
 
             # Check contents of message and do what it says
             self.get_widget("daq").update()
-            
+
             gps_widget = self.get_widget("gps")
 
             # try to extract GPS information if widget is active and enabled
             if gps_widget.active() and gps_widget.isEnabled():
                 gps_widget.update()
                 continue
-                
+
             status_widget = self.get_widget("status")
 
             # update status widget if active
@@ -826,8 +927,7 @@ class Application(QtGui.QMainWindow):
 
     def calculate_pulses(self):
         """
-        Runs the calculate function of pulse widgets if they are active
-        and pulses are available.
+        Runs the calculate function of pulse widgets if they are active and pulses are available.
 
         :returns: None
         """
