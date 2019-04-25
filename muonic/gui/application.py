@@ -109,33 +109,36 @@ class Application(QtGui.QMainWindow):
         manualdoc_menu:
             Show the manual that comes with muonic in a pdf viewer.
 
-    get_thresholds_from_msg:
-        Explicitly scan message for threshold information.
+    Utils:
+    ======
 
-        msg:
+        get_thresholds_from_msg:
+            Explicitly scan message for threshold information.
 
-    get_channels_from_msg:
-        Explicitly scan message for channel information.
-        Return True if found, False otherwise.
+            msg:
 
-        msg:
+        get_channels_from_msg:
+            Explicitly scan message for channel information.
+            Return True if found, False otherwise.
 
-    process_incoming:
-        This functions gets everything out of the daq.
-        Handles all the messages currently in the daq
-        and passes the results to the corresponding widgets.
+            msg:
 
-    calculate_pulses:
-        Runs the calculate function of pulse widgets if they are active and pulses are available.
+        process_incoming:
+            This functions gets everything out of the daq.
+            Handles all the messages currently in the daq
+            and passes the results to the corresponding widgets.
 
-    update_dynamic:
-        Update dynamic widgets.
+        calculate_pulses:
+            Runs the calculate function of pulse widgets if they are active and pulses are available.
 
-    closeEvent:
-        Is triggered when it is attempted to close the application.
-        Will perform some cleanup before closing.
+        update_dynamic:
+            Update dynamic widgets.
 
-        ev:
+        closeEvent:
+            Is triggered when it is attempted to close the application.
+            Will perform some cleanup before closing.
+
+            ev:
 
     :param daq: daq card connection
     :type daq: muonic.daq.provider.BaseDAQProvider

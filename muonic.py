@@ -57,20 +57,29 @@ def main(args, logger):
     if args.port is not None:
         # client works with zmq socket
         daq = DAQClient(port=args.port, logger=logger)
+        logger.info('Client with zmq socket has started.\n\\
+                with port %s'%port)
     else:
         # provider works with multiprocessing.Queue
         daq = DAQProvider(sim=args.sim, logger=logger)
-    # Both works multprocessing and the read and write function are executed
+        if sim and port is not None:
+            logger.info('Client with zmq does not support a simulation.\n\\
+                Provider with with multiprocessing.Queue \n\\
+                has started instead.')
+        else:
+            logger.info('Provider with with multiprocessing.Queue \n\\
+                has started.')
+    # Both works multiprocessing and the read and write function are executed
     # in an endless loop.
     # daq provides get and put functions to communicate with the DAQ Card
 
-    
+
     # Set up the GUI part
     gui = Application(daq, logger, args)
     gui.show()
     root.exec_()
-    
-    
+
+
 #---------------------------
 if __name__ == '__main__':
     # handle ctrl+c
@@ -132,7 +141,7 @@ and Y will be the total measurement time""" % DATA_PATH
         sys.exit(0)
 
     args.user = args.user[0]
-    
+
     if len(args.user) != 2:
         parser.error("Incorrect number of arguments, you have to specify " +
                      "just the initials of your name for the file names.\n" +
