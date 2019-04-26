@@ -132,7 +132,9 @@ class Application(QtGui.QMainWindow):
             Runs the calculate function of pulse widgets if they are active and pulses are available.
 
         update_dynamic:
-            Update dynamic widgets.
+            Update dynamic widgets:
+            RateWidget, PulseAnalyzerWidget,
+            DecayWidget and VelocityWidget
 
         closeEvent:
             Is triggered when it is attempted to close the application.

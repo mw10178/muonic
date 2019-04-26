@@ -8,44 +8,57 @@ from __future__ import print_function
 #           "apply_default_settings", "dump_settings"]
 class  DAQCardSettings():
     '''
-    enable_status_reporting
-    disable_status_reporting
-    enable_write_pulses
-    disable_write_pulses
-    get_thresholds_from_msg
-    get_channels_from_msg
-    get_threshold_from_card
+    Utils:
+    ======
+        get_thresholds_from_msg
+        get_channels_from_msg
+
+    Setup Functions:
+    ================
+        enable_status_reporting
+        disable_status_reporting
+        enable_write_pulses
+        disable_write_pulses
+        change_thresholds
+        set_channel_config
+
+
+    Read Functions:
+    ===============
+        get_threshold_from_card
+            Return: bool if succesfully
+
     '''
     _default_settings = {
-            "write_pulses": False,#
-            "scalar_data": False,#
-            "reset_counter": False,#
-            "write_daq_status": False,#
-            "time_window": 5.0,
-            "gate_width": 0.0,
-
-            "veto": False,          #       ######
-            "veto_ch0": False,      #       #
-            "veto_ch1": False,      #       #
-            "veto_ch2": False,      #       # Read out with
-            "active_ch0": True,             # get_configuration_from_daq_card
-            "active_ch1": True,             #
-            "active_ch2": True,             #
-            "active_ch3": True,             #
-            "coincidence0": True,   #       #
-            "coincidence1": False,  #       #
-            "coincidence2": False,  #       #
-            "coincidence3": False,  #       #
-            "threshold_ch0": 300,           #
-            "threshold_ch1": 300,           #
-            "threshold_ch2": 300,           #
-            "threshold_ch3": 300            #####
+            "write_pulses": False,         # 1
+            "scalar_data": False,          # 2
+            "reset_counter": False,        # 3
+            "write_daq_status": False,     # 4
+            "time_window": 5.0,            # 5
+            "gate_width": 100.0,           # 6 coincedence time
+            "veto": False,                 # 7
+            "veto_ch0": False,             # 8
+            "veto_ch1": False,             # 9
+            "veto_ch2": False,             # 10
+            "active_ch0": True,            # 11
+            "active_ch1": True,            # 12
+            "active_ch2": True,            # 13
+            "active_ch3": True,            # 14
+            "coincidence0": True,          # 15
+            "coincidence1": False,         # 16
+            "coincidence2": False,         # 17
+            "coincidence3": False,         # 18
+            "threshold_ch0": 300,          # 19
+            "threshold_ch1": 300,          # 20
+            "threshold_ch2": 300,          # 21
+            "threshold_ch3": 300           # 22
         }
 
     _settings = dict()
 
-    def __init__(daq):
+    def __init__(daq, logger):
         self.daq = daq
+        self.logger = logger
 
 
     def update_setting(self, key, value):
@@ -153,120 +166,6 @@ class  DAQCardSettings():
         """
         for key, value in sorted(self._settings.items()):
             print("%-20s = %s" % (key, value))
-
-
-#############################################################
-#-----------------------------------------------------------#
-#############################################################
-
-
-    def get_configuration_from_daq_card(self):
-        """
-        Get the initial threshold and channel configuration
-        from the DAQ card.
-
-        :returns: None
-        """
-        # get the thresholds
-        self.daq.put('TL')
-        # give the daq some time to react
-        time.sleep(0.5)
-
-        while self.daq.data_available():
-            try:
-                msg = self.daq.get(0)
-                self.get_thresholds_from_msg(msg)
-
-            except DAQIOError:
-                self.logger.debug("Queue empty!")
-
-        # get the channel config
-        self.daq.put('DC')
-        # give the daq some time to react
-        time.sleep(0.5)
-
-        while self.daq.data_available():
-            try:
-                msg = self.daq.get(0)
-                self.get_channels_from_msg(msg)
-
-            except DAQIOError:
-                self.logger.debug("Queue empty!")
-
-    def change_thresholds(thresholds):
-        '''
-        Changes thresholds
-        List must have a maximal length of 4.
-        :thresholds: list
-        '''
-        if len(thresholds) <= 4:
-            # update thresholds config
-            for ch, val in enumerate(thresholds):
-                self.update_setting("threshold_ch%d" % ch, val)
-                commands.append("TL %d %s" % (ch, val))
-
-            # apply new thresholds to daq card
-            for cmd in commands:
-                self.daq.put(cmd)
-                self.logger.info("Set threshold of channel %s to %s" %
-                                 (cmd.split()[1], cmd.split()[2]))
-        else:
-            self.logger.info('List must have a maximal length of 4. ')
-
-
-    def enable_status_reporting(self, scalar_data=False, reset_counter=False):
-        '''
-        Show status line: channels & coincidence.
-        Important: run this command for each data session.
-
-        Parameter
-        =========
-            scalar_data: bool
-                default=False
-
-            reset_counter: bool
-                default=False
-        '''
-
-        if (scalar_data and reset_counter) or reset_counter:
-            msg = 'ST 3'
-            self.update_setting('scalar_data', True)
-            self.update_setting('reset_counter', True)
-        elif scalar_data:
-            msg = 'ST 2'
-            self.update_setting('scalar_data', True)
-        else:
-            msg = 'ST 1'
-        self.update_setting('write_pulses', True)
-        self.daq.put(msg)
-
-
-    def disable_status_reporting(self):
-        '''
-        Disable status reporting
-        '''
-        self.update_setting('write_pulses', False)
-        self.update_setting('scalar_data', False)
-        self.update_setting('reset_counter', False)
-        self.daq.put('ST 0')
-
-
-    def enable_write_pulses(self):
-        '''
-        TMC Counter Enable
-        Writes event lines on the PC monitor. This
-        command has the opposite effect of the CD command.
-        '''
-        self.daq.put('CE')
-
-    def disable_write_pulses(self):
-        '''
-        TMC Counter Disable
-        Does not write event lines on the PC monitor
-        even though the scalars will still increment. This is useful when you do
-        not want to “see” all the data coming in.
-        '''
-        self.daq.put('CD')
 
     def get_thresholds_from_msg(self, msg):
         """
@@ -419,3 +318,245 @@ class  DAQCardSettings():
         else:
             self.logger.debug("Was not able to interprete:\n%s"%msg)
             return False
+
+
+#############################################################
+#-----------------------------------------------------------#
+#############################################################
+
+
+    def get_configuration_from_daq_card(self):
+        """
+        Get the initial threshold and channel configuration
+        from the DAQ card.
+
+        :returns: None
+        """
+        # get the thresholds
+        self.daq.put('TL')
+        # give the daq some time to react
+        time.sleep(0.5)
+
+        while self.daq.data_available():
+            try:
+                msg = self.daq.get(0)
+                self.get_thresholds_from_msg(msg)
+
+            except DAQIOError:
+                self.logger.debug("Queue empty!")
+
+        # get the channel config
+        self.daq.put('DC')
+        # give the daq some time to react
+        time.sleep(0.5)
+
+        while self.daq.data_available():
+            try:
+                msg = self.daq.get(0)
+                self.get_channels_from_msg(msg)
+
+            except DAQIOError:
+                self.logger.debug("Queue empty!")
+
+    def change_thresholds(thresholds):
+        '''
+        Changes thresholds
+        List must have a maximal length of 4.
+        :thresholds: list
+        '''
+        if len(thresholds) <= 4:
+            # update thresholds config
+            for ch, val in enumerate(thresholds):
+                self.update_setting("threshold_ch%d" % ch, val)
+                commands.append("TL %d %s" % (ch, val))
+
+            # apply new thresholds to daq card
+            for cmd in commands:
+                self.daq.put(cmd)
+                self.logger.info("Set threshold of channel %s to %s" %
+                                 (cmd.split()[1], cmd.split()[2]))
+        else:
+            self.logger.info('List must have a maximal length of 4. ')
+
+    def set_channel_config(channel_config, coincidence_config,
+                          veto, veto_config):
+        '''
+        Change the channel configuration of the DAQCard:
+        Which channels are active: 0,1,2,3?
+        How many coincident signals are needed for the trigger?
+        Are there a channel which works as veto? --> para: veto
+        Which channel works as veto: 1,2 or 3
+
+        Parameters:
+        ===========
+            channel_config: list of bool, len = 4
+                Active channels
+                default=None
+            coincidence_config: list of bool, len = 4
+                single, twofold, threefold, fourfold
+                default=None
+            veto: bool
+                Veto is active or not
+                default=None
+            veto_config: list of bool, len = 3
+                Veto on Channel 1, 2 or 3
+                default=None
+        '''
+
+        # channel_config and veto_config input with respect to unambiguity
+        if sum(coincidence_config) > 1:
+            self.logger.info("I have got an ambiguous input for"+
+                "coincidence_config: \n%s "%str(coincidence_config)+
+                "and used the default instead.")
+            for i in range(4):
+                channel_config[i] = self.get_setting("coincidence%d" % i")
+        elif sum(coincidence_config) == 0:
+                channel_config[0] = True
+
+        if sum(veto_config) > 1:
+            self.logger.info("I have got an ambiguous input for"+
+                "veto_config: \n%s "%str(veto_config)+
+                "and used the default instead.")
+            for i in range(3):
+                veto_config[i] = self.get_setting("veto_ch%d" % i")
+
+        # update the settings dictionary with resp. active channels,
+        # veto state and veto channel
+        for i in range(4):
+            self.update_setting("active_ch%d" % i, channel_config[i])
+            self.update_setting("coincidence%d" % i, coincidence_config[i])
+        self.update_setting("veto", veto)
+        for i in range(3):
+            self.update_setting("veto_ch%d" % i, veto_config[i])
+
+        # build daq message to apply the new config to the card
+        tmp_msg = ""
+
+        if veto:
+            if veto_config[0]:
+                tmp_msg += "01"
+            elif veto_config[1]:
+                tmp_msg += "10"
+            elif veto_config[2]:
+                tmp_msg += "11"
+            else:
+                tmp_msg += "00"
+        else:
+            tmp_msg += "00"
+
+        # singles, twofold, threefold, fourfold
+        if sum(coincidence_config) <= 1:
+            for i, coincidence in enumerate(["00", "01", "10", "11"]):
+                if coincidence_config[i]:
+                    tmp_msg += coincidence
+
+        # now calculate the correct expression for the first
+        # four bits
+        self.logger.debug("The first four bits are set to %s" % tmp_msg)
+        msg = "WC 00 %s" % hex(int(''.join(tmp_msg), 2))[-1].capitalize()
+
+        channel_set = False
+        enable = ['0', '0', '0', '0']
+
+        for i, active in enumerate(reversed(channel_config)):
+            if active:
+                enable[i] = '1'
+                channel_set = True
+
+        if channel_set:
+            msg += hex(int(''.join(enable), 2))[-1].capitalize()
+        else:
+            msg += '0'
+
+        # send the message to the daq card
+        self.daq.put(msg)
+
+        self.logger.info("The following message was sent to DAQ: %s" % msg)
+
+        for i in range(4):
+            self.logger.debug("channel%d selected %s" %
+                              (i, channel_config[i]))
+
+        for i, name in enumerate(["singles", "twofold",
+                                  "threefold", "fourfold"]):
+            self.logger.debug("coincidence %s %s" %
+                              (name, coincidence_config[i]))
+
+
+    def enable_status_reporting(self, scalar_data=False, reset_counter=False):
+        '''
+        Show status line: channels & coincidence.
+        Important: run this command for each data session.
+
+        Parameter
+        =========
+            scalar_data: bool
+                default=False
+
+            reset_counter: bool
+                default=False
+        '''
+
+        if (scalar_data and reset_counter) or reset_counter:
+            msg = 'ST 3'
+            self.update_setting('scalar_data', True)
+            self.update_setting('reset_counter', True)
+            scalar_data = True
+        elif scalar_data:
+            msg = 'ST 2'
+            self.update_setting('scalar_data', True)
+        else:
+            msg = 'ST 1'
+        self.update_setting('write_pulses', True)
+        self.daq.put(msg)
+        self.logger.info("Enabled status report with: \n"+
+            "scalar_data: %s\n"%str(scalar_data)+
+            "reset_counter: %s"%str(reset_counter))
+
+    def disable_status_reporting(self):
+        '''
+        Disable status reporting
+        '''
+        self.update_setting('write_pulses', False)
+        self.update_setting('scalar_data', False)
+        self.update_setting('reset_counter', False)
+        self.daq.put('ST 0')
+        self.logger.info("Disabled status report")
+
+
+    def enable_write_pulses(self):
+        '''
+        TMC Counter Enable
+        Writes into event lines raw file all the time. This
+        command has the opposite effect of the CD command.
+        '''
+        self.daq.put('CE')
+
+
+    def disable_write_pulses(self):
+        '''
+        TMC Counter Disable
+        Does not write evevent lines raw file all the time
+        even though the scalars will still increment. This is useful when you do
+        not want to “see” all the data coming in.
+        '''
+        self.daq.put('CD')
+
+    def set_gate_width(gate_width):
+        '''
+        Set maximal time difference for sequentially measured events
+        to be coincident. In ns.
+        '''
+        gate_width = int(gate_width)
+        self.update_setting("gate_width", gate_width)
+
+        # transform gate width for daq msg
+        gate_width = bin(gate_width // 10).replace('0b', '').zfill(16)
+        gate_width_03 = format(int(gate_width[0:8], 2), 'x').zfill(2)
+        gate_width_02 = format(int(gate_width[8:16], 2), 'x').zfill(2)
+
+        # set gate widths
+        self.daq.put("WC 03 %s" % gate_width_03)
+        self.daq.put("WC 02 %s" % gate_width_02)
+        self.logger.info("Changed gate window for coincedence to "+
+                "%d"%gate_width)

@@ -1,4 +1,5 @@
 from .provider import DAQClient, DAQProvider
+from .DAQCardSettings import DAQCardSettings
 import logging
 
 class DAQCard():
@@ -84,8 +85,8 @@ class DAQCard():
         - View mode returns to normal after "CD","CE","ST" or "RE".\n'
 
     def __init__(daq=None, logger=None, port=None, sim=False, verbose=False):
+        # set up logger
         if logger is None:
-            # set up logging
             formatter = logging.Formatter("%(levelname)s:%(process)d:%(module)s:" +
                                           "%(funcName)s:%(lineno)d:%(message)s")
             ch = logging.StreamHandler()
@@ -97,6 +98,7 @@ class DAQCard():
             logger.addHandler(ch)
         self.logger = logger
 
+        # set up providers for hardware near communication
         if daq is not None:
             self.daq = daq
         elif port is not None and not sim:
@@ -106,13 +108,17 @@ class DAQCard():
         else:
             self.daq = DAQProvider(sim=sim, logger=logger)
             if sim and port is not None:
-                logger.info('Client with zmq does not support a simulation.\n\\
+                self.logger.info('Client with zmq does not support a simulation.\n\\
                     Provider with with multiprocessing.Queue \n\\
                     has started instead.')
             else:
-                logger.info('Provider with with multiprocessing.Queue \n\\
+                self.logger.info('Provider with with multiprocessing.Queue \n\\
                     has started.')
 
+        # set up settings class object to handle all settings
+        self.settings.DAQCardSettings(self.daq, self.logger)
+        self.settings.get_configuration_from_daq_card()
+        
     def help_com(self, print=False):
         '''
         Help containing a list of all ASCII commands for the DAQ Card.

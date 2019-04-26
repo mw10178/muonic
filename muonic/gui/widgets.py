@@ -164,7 +164,7 @@ class RateWidget(BaseWidget):
         # 4:    trigger
         self.previous_scalars = self.new_scalar_buffer()
         self.scalar_buffer = self.new_scalar_buffer()
-        
+
         # maximum and minimum seen rate across channels and trigger
         self.max_rate = 0
         self.min_rate = 0
@@ -190,8 +190,8 @@ class RateWidget(BaseWidget):
         self.table.setColumnWidth(0, 85)
         self.table.setColumnWidth(1, 60)
         self.table.setHorizontalHeaderLabels(["rate [1/s]", "counts"])
-        self.table.setVerticalHeaderLabels(["channel 0", "channel 1", 
-                                            "channel 2", "channel 3", 
+        self.table.setVerticalHeaderLabels(["channel 0", "channel 1",
+                                            "channel 2", "channel 3",
                                             "trigger"])
         self.table.horizontalHeader().setStretchLastSection(True)
 
@@ -299,12 +299,13 @@ class RateWidget(BaseWidget):
         :type: str
         :return: list of ints
         """
+        print(msg)
         scalars = self.new_scalar_buffer()
-
         for item in msg.split():
             for i in range(self.SCALAR_BUF_SIZE):
                 if item.startswith("S%d" % i) and len(item) == 11:
                     scalars[i] = int(item[3:], 16)
+                    print(scalars[i])
         return scalars
 
     def calculate(self):
@@ -613,7 +614,7 @@ class PulseAnalyzerWidget(BaseWidget):
         self.pulse_width_canvases = []
         self.pulse_width_toolbars = []
         for i in range(4):
-            self.pulse_width_canvases.append((PulseWidthCanvas(self, logger, 
+            self.pulse_width_canvases.append((PulseWidthCanvas(self, logger,
                                                     title="Pulse Widths Ch %d"%i)))
 
             self.pulse_width_toolbars.append(NavigationToolbar(self.pulse_width_canvases[-1], self))
@@ -655,7 +656,7 @@ class PulseAnalyzerWidget(BaseWidget):
                 else:
                     pulse_widths.append(0.)
             self.pulse_widths[i] = pulse_widths
-        
+
     def update(self):
         """
         Update plot canvases
@@ -842,7 +843,7 @@ class StatusWidget(BaseWidget):
 
         :returns: None
         """
-        self.refresh_button.setDisabled(True)        
+        self.refresh_button.setDisabled(True)
         self.logger.debug("Refreshing status information.")
 
         # request status information from DAQ card
@@ -1411,7 +1412,7 @@ class DecayWidget(BaseWidget):
 
         if decay is not None:
             when = datetime.datetime.utcnow()
-            self.event_data.append((decay / 1000, 
+            self.event_data.append((decay / 1000,
                                     when.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]))
             self.muon_counter += 1
             self.last_event_time = when
@@ -1828,7 +1829,7 @@ class GPSWidget(BaseWidget):
         :returns: None
         """
         self.refresh_button.setEnabled(False)
-        self.gps_dump = [] 
+        self.gps_dump = []
         self.logger.info('Reading GPS.')
         self.parent.process_incoming()
         self.active(True)
@@ -1866,7 +1867,7 @@ class GPSWidget(BaseWidget):
         # sometimes, the widget will not register the line where the DG command is put
         if not self.gps_dump[1].startswith('DG'):
             self.msg_offset = -1
-	
+
         gps_time = ''
         pos_fix = 0
         latitude = ''
