@@ -57,18 +57,18 @@ def main(args, logger):
     if args.port is not None:
         # client works with zmq socket
         daq = DAQClient(port=args.port, logger=logger)
-        logger.info('Client with zmq socket has started.\n\\
-                with port %s'%port)
+        logger.info('''Client with zmq socket has started.
+                with port %s'''%port)
     else:
         # provider works with multiprocessing.Queue
         daq = DAQProvider(sim=args.sim, logger=logger)
-        if sim and port is not None:
-            logger.info('Client with zmq does not support a simulation.\n\\
-                Provider with with multiprocessing.Queue \n\\
-                has started instead.')
+        if args.sim and args.port is not None:
+            logger.info('''Client with zmq does not support a simulation.
+                Provider with with multiprocessing.Queue
+                has started instead.''')
         else:
-            logger.info('Provider with with multiprocessing.Queue \n\\
-                has started.')
+            logger.info('''Provider with with multiprocessing.Queue
+                has started.''')
     # Both works multiprocessing and the read and write function are executed
     # in an endless loop.
     # daq provides get and put functions to communicate with the DAQ Card
