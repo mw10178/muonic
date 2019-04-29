@@ -2,6 +2,9 @@
 Class object for application settings store
 """
 from __future__ import print_function
+from .exceptions import DAQIOError, DAQMissingDependencyError
+import time
+import numpy as np
 
 #__all__ = ["update_setting", "have_setting", "get_setting",
 #           "remove_setting", "update_settings",
@@ -15,8 +18,8 @@ class  DAQCardSettings():
 
     Setup Functions:
     ================
-        enable_status_reporting
-        disable_status_reporting
+        enable_status_report
+        disable_status_report
         enable_write_pulses
         disable_write_pulses
         change_thresholds
@@ -30,11 +33,11 @@ class  DAQCardSettings():
 
     '''
     _default_settings = {
-            "write_pulses": False,         # 1
+            "write_pulses": False,          # 1
             "scalar_data": False,          # 2
             "reset_counter": False,        # 3
-            "write_daq_status": False,     # 4
-            "time_window": 5.0,            # 5
+            "write_daq_status": 0,     # 4
+            "time_window": 5.0,            # 5  OLD Variable
             "gate_width": 100.0,           # 6 coincedence time
             "veto": False,                 # 7
             "veto_ch0": False,             # 8
@@ -56,10 +59,18 @@ class  DAQCardSettings():
 
     _settings = dict()
 
-    def __init__(daq, logger):
+    def __init__(self, daq, logger, default=False, status_report=False):
         self.daq = daq
         self.logger = logger
-
+        if default:
+            self.apply_default_settings()
+        else:
+            self.get_configuration_from_daq_card()
+            self.enable_write_pulses()
+        if status_report:
+            self.enable_status_report()
+        else:
+            self.disable_status_report()
 
     def update_setting(self, key, value):
         """
@@ -105,27 +116,8 @@ class  DAQCardSettings():
         return self._settings.get(key, default)
 
 
-    def remove_setting(self, key):
-        """
-        Remove setting with key.
 
-        :param key: settings key
-        :type key: str
-        :returns: removed object
-        """
-        return self._settings.pop(key)
-
-
-    def clear_settings(self):
-        """
-        Clears the settings store
-
-        :returns: None
-        """
-        self._settings.clear()
-
-
-    def update_settings(self, newsettings, clear=False):
+    def update_settings(self, newsettings):
         """
         Add settings from dict.
 
@@ -135,16 +127,42 @@ class  DAQCardSettings():
         :type clear: bool
         :returns: None
         """
-        if self.newsettings is None:
+        if newsettings is None:
             return
-        if isinstance(self.newsettings, dict):
-            if clear:
-                self.clear_settings()
-            for key, value in list(settings.items()):
-                self.update_setting(key, value)
+        if isinstance(newsettings, dict):
+            keys = self._settings.keys()
+            # set channel configuration
+            channel_config = [newsettings['active_ch%d'%i] for i in range(4)]
+            coincidence_config = [newsettings['coincidence%d'%i]
+                                   for i in range(4)]
+            veto = newsettings['veto']
+            veto_config = [newsettings['veto_ch%d'%i] for i in range(3)]
+            self.set_channel_config(channel_config, coincidence_config,
+                      veto, veto_config)
+
+            # set Thresholds
+            threshold = [newsettings['threshold_ch%d'%i] for i in range(4)]
+            self.set_thresholds(threshold)
+
+            # set gate witdh
+            self.set_gate_width(newsettings['gate_width'])
+
+            # set status report
+            if newsettings['write_daq_status']:
+                self.enable_status_report(
+                        scalar_data=newsettings['scalar_data'],
+                        reset_counter=newsettings['reset_counter']
+                        )
+            else:
+                self.disable_status_report()
+
+            # write pulses
+            if newsettings['write_pulses']:
+                self.enable_write_pulses()
+            else:
+                self.disable_write_pulses()
         else:
             raise TypeError("Argument has to be a dict")
-
 
     def apply_default_settings(self, clear=False):
         """
@@ -155,7 +173,7 @@ class  DAQCardSettings():
         :type clear: bool
         :returns: None
         """
-        self.update_settings(self._default_settings, clear)
+        self.update_settings(self._default_settings)
 
 
     def dump_settings(self):
@@ -164,8 +182,41 @@ class  DAQCardSettings():
 
         :returns: None
         """
-        for key, value in sorted(self._settings.items()):
-            print("%-20s = %s" % (key, value))
+        # active channels
+        channel_config = {i:self._settings['active_ch%d'%i] for i in range(4)}
+        print("Active channels:\n"+"="*16+"\n%s\n"%str(channel_config))
+        # coincedence
+        coincidence_mask = np.array([self._settings['coincidence%d'%i]
+                               for i in range(4)])
+        print('Coincidence: ' + np.array(['Set off', 'Twofold',
+                  'Threefold', 'Fourfold'])[coincidence_mask][0])
+        # set gate witdh
+        print('Gate width for coincendent events: ',
+                self._settings['gate_width'], '\n')
+
+        # veto
+        veto = self._settings['veto']
+        veto_mask = np.array([self._settings['veto_ch%d'%i]
+                               for i in range(3)])
+        veto_config = {(i+1):self._settings['veto_ch%d'%i] for i in range(3)}
+        print('Veto is ' + ('active.' if veto else 'inactive.') )
+        print('Veto channels are: ', np.array(['1', '2',
+                  '3'])[veto_mask], '\n')
+
+        # set Thresholds
+        threshold = {'Ch%d'%i:self._settings['threshold_ch%d'%i]
+                            for i in range(4)}
+        print("Thresholds:\n"+"="*11+"\n%s\n"%str(threshold))
+
+        # set status report
+        wds = self._settings['write_daq_status']
+        sd = self._settings['scalar_data']
+        rc = self._settings['reset_counter']
+        print('Automatic status report is '+('enabled.' if wds > 0 else 'disabled.'))
+        if wds > 0:
+            print('Report every %d min.'%wds)
+            if sd: print('Counts will be shown.')
+            if rc: print('Counters will be reseted at each report.')
 
     def get_thresholds_from_msg(self, msg):
         """
@@ -184,7 +235,7 @@ class  DAQCardSettings():
             self.update_setting("threshold_ch2", int(msg[3][:-2]))
             self.update_setting("threshold_ch3", int(msg[4]))
             self.logger.debug("Got Thresholds %d %d %d %d" %
-                              tuple([get_setting("threshold_ch%d" % i)
+                              tuple([self.get_setting("threshold_ch%d" % i)
                                      for i in range(4)]))
             return True
         else:
@@ -278,16 +329,16 @@ class  DAQCardSettings():
                         self.update_setting("veto_ch%d" % (i - 1), True)
 
             self.logger.debug('gate width timew indow %d ns' %
-                              get_setting("gate_width"))
+                              self.get_setting("gate_width"))
             self.logger.debug("Got channel configurations: %d %d %d %d" %
-                              tuple([get_setting("active_ch%d" % i)
+                              tuple([self.get_setting("active_ch%d" % i)
                                      for i in range(4)]))
             self.logger.debug("Got coincidence configurations: %d %d %d %d" %
-                              tuple([get_setting("coincidence%d" % i)
+                              tuple([self.get_setting("coincidence%d" % i)
                                      for i in range(4)]))
             self.logger.debug("Got veto configurations: %d %d %d %d" %
-                              tuple([get_setting("veto")] +
-                                    [get_setting("veto_ch%d" % i)
+                              tuple([self.get_setting("veto")] +
+                                    [self.get_setting("veto_ch%d" % i)
                                      for i in range(3)]))
 
             return True
@@ -296,7 +347,7 @@ class  DAQCardSettings():
             return False
 
     def get_threshold_from_card(self):
-                """
+        """
         Explicitly scan message for threshold information.
 
         Return True if found, False otherwise.
@@ -304,33 +355,6 @@ class  DAQCardSettings():
         :param msg: daq message
         :type msg: str
         :returns: bool
-        """
-        if msg.startswith('TL') and len(msg) > 9:
-            msg = msg.split('=')
-            update_setting("threshold_ch0", int(msg[1][:-2]))
-            update_setting("threshold_ch1", int(msg[2][:-2]))
-            update_setting("threshold_ch2", int(msg[3][:-2]))
-            update_setting("threshold_ch3", int(msg[4]))
-            self.logger.debug("Got Thresholds %d %d %d %d" %
-                              tuple([get_setting("threshold_ch%d" % i)
-                                     for i in range(4)]))
-            return True
-        else:
-            self.logger.debug("Was not able to interprete:\n%s"%msg)
-            return False
-
-
-#############################################################
-#-----------------------------------------------------------#
-#############################################################
-
-
-    def get_configuration_from_daq_card(self):
-        """
-        Get the initial threshold and channel configuration
-        from the DAQ card.
-
-        :returns: None
         """
         # get the thresholds
         self.daq.put('TL')
@@ -345,6 +369,20 @@ class  DAQCardSettings():
             except DAQIOError:
                 self.logger.debug("Queue empty!")
 
+
+#############################################################
+#-----------------------------------------------------------#
+#############################################################
+
+
+    def get_configuration_from_daq_card(self):
+        """
+        Get the initial threshold and channel configuration
+        as well as the gate width from the DAQ card.
+        """
+        # get the thresholds
+        self.get_threshold_from_card() 
+
         # get the channel config
         self.daq.put('DC')
         # give the daq some time to react
@@ -358,13 +396,17 @@ class  DAQCardSettings():
             except DAQIOError:
                 self.logger.debug("Queue empty!")
 
-    def change_thresholds(thresholds):
+
+
+
+    def set_thresholds(self, thresholds):
         '''
         Changes thresholds
         List must have a maximal length of 4.
         :thresholds: list
         '''
         if len(thresholds) <= 4:
+            commands = []
             # update thresholds config
             for ch, val in enumerate(thresholds):
                 self.update_setting("threshold_ch%d" % ch, val)
@@ -378,7 +420,7 @@ class  DAQCardSettings():
         else:
             self.logger.info('List must have a maximal length of 4. ')
 
-    def set_channel_config(channel_config, coincidence_config,
+    def set_channel_config(self, channel_config, coincidence_config,
                           veto, veto_config):
         '''
         Change the channel configuration of the DAQCard:
@@ -409,7 +451,7 @@ class  DAQCardSettings():
                 "coincidence_config: \n%s "%str(coincidence_config)+
                 "and used the default instead.")
             for i in range(4):
-                channel_config[i] = self.get_setting("coincidence%d" % i")
+                channel_config[i] = self.get_setting("coincidence%d" % i)
         elif sum(coincidence_config) == 0:
                 channel_config[0] = True
 
@@ -418,7 +460,7 @@ class  DAQCardSettings():
                 "veto_config: \n%s "%str(veto_config)+
                 "and used the default instead.")
             for i in range(3):
-                veto_config[i] = self.get_setting("veto_ch%d" % i")
+                veto_config[i] = self.get_setting("veto_ch%d" % i)
 
         # update the settings dictionary with resp. active channels,
         # veto state and veto channel
@@ -483,13 +525,16 @@ class  DAQCardSettings():
                               (name, coincidence_config[i]))
 
 
-    def enable_status_reporting(self, scalar_data=False, reset_counter=False):
+    def enable_status_report(self, dt=1, scalar_data=False, reset_counter=False):
         '''
         Show status line: channels & coincidence.
         Important: run this command for each data session.
 
         Parameter
         =========
+            dt: int
+                Period for status report in full minutes.
+                Between [1 min, 30 min]. default=1
             scalar_data: bool
                 default=False
 
@@ -498,62 +543,65 @@ class  DAQCardSettings():
         '''
 
         if (scalar_data and reset_counter) or reset_counter:
-            msg = 'ST 3'
+            msg = 'ST 3 %d'%dt
             self.update_setting('scalar_data', True)
             self.update_setting('reset_counter', True)
             scalar_data = True
         elif scalar_data:
-            msg = 'ST 2'
+            msg = 'ST 2 %d'%dt
             self.update_setting('scalar_data', True)
         else:
-            msg = 'ST 1'
-        self.update_setting('write_pulses', True)
+            msg = 'ST 1 %d'%dt
+        self.update_setting('write_daq_status', dt)
         self.daq.put(msg)
         self.logger.info("Enabled status report with: \n"+
-            "scalar_data: %s\n"%str(scalar_data)+
-            "reset_counter: %s"%str(reset_counter))
+            "scalar_data: %s\n"%str(bool(scalar_data))+
+            "reset_counter: %s\n"%str(bool(reset_counter))+
+            "Report is every %d min."%dt)
 
-    def disable_status_reporting(self):
+    def disable_status_report(self):
         '''
         Disable status reporting
         '''
-        self.update_setting('write_pulses', False)
+        self.update_setting('write_daq_status', 0)
         self.update_setting('scalar_data', False)
         self.update_setting('reset_counter', False)
         self.daq.put('ST 0')
-        self.logger.info("Disabled status report")
+        self.logger.info("Disabled status report.")
 
 
     def enable_write_pulses(self):
         '''
         TMC Counter Enable
-        Writes into event lines raw file all the time. This
+        Send all pulses to buffer. This
         command has the opposite effect of the CD command.
         '''
+        self.update_setting('write_pulses', True)
         self.daq.put('CE')
 
 
     def disable_write_pulses(self):
         '''
         TMC Counter Disable
-        Does not write evevent lines raw file all the time
+        Does not send all pulses to buffer.
         even though the scalars will still increment. This is useful when you do
         not want to “see” all the data coming in.
         '''
+        self.update_setting('write_pulses', False)
         self.daq.put('CD')
 
-    def set_gate_width(gate_width):
+    def set_gate_width(self, gate_width):
         '''
         Set maximal time difference for sequentially measured events
         to be coincident. In ns.
         '''
         gate_width = int(gate_width)
-        self.update_setting("gate_width", gate_width)
+        #self.update_setting("gate_width", gate_width)
 
         # transform gate width for daq msg
-        gate_width = bin(gate_width // 10).replace('0b', '').zfill(16)
-        gate_width_03 = format(int(gate_width[0:8], 2), 'x').zfill(2)
-        gate_width_02 = format(int(gate_width[8:16], 2), 'x').zfill(2)
+        gate_width_b = bin(gate_width // 10).replace('0b', '').zfill(16)
+        gate_width_03 = format(int(gate_width_b[0:8], 2), 'x').zfill(2)
+        gate_width_02 = format(int(gate_width_b[8:16], 2), 'x').zfill(2)
 
         # set gate widths
         self.daq.put("WC 03 %s" % gate_width_03)

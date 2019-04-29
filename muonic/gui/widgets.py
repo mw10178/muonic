@@ -299,13 +299,11 @@ class RateWidget(BaseWidget):
         :type: str
         :return: list of ints
         """
-        print(msg)
         scalars = self.new_scalar_buffer()
         for item in msg.split():
             for i in range(self.SCALAR_BUF_SIZE):
                 if item.startswith("S%d" % i) and len(item) == 11:
                     scalars[i] = int(item[3:], 16)
-                    print(scalars[i])
         return scalars
 
     def calculate(self):
@@ -324,7 +322,7 @@ class RateWidget(BaseWidget):
 
         # extract scalars from daq message
         scalars = self.extract_scalars_from_message(msg)
-
+        print(scalars)
         # if this is the first time calculate is called, we want to set all
         # counters to zero. This is the beginning of the first bin.
         if self.first_cycle:
@@ -351,7 +349,6 @@ class RateWidget(BaseWidget):
         self.rates += [time_window]
         # scalars for channels and trigger
         self.rates += [_scalar for _scalar in scalar_diffs]
-
         self.time_window += time_window
 
         # add scalar diffs for channels and trigger to buffer
@@ -368,7 +365,7 @@ class RateWidget(BaseWidget):
         if max_rate > self.max_rate:
             self.max_rate = max_rate
 
-        # write the rates to data file. we have to catch IOErrors, can occur
+        # write the rates to data R-file. we have to catch IOErrors, can occur
         # if program is exited
         if self.active():
             try:
@@ -387,6 +384,8 @@ class RateWidget(BaseWidget):
             except ValueError:
                 self.logger.warning("ValueError, Rate plot data was not " +
                                     "written to %s" % repr(self.data_file))
+        print('rates: ', self.rates)
+        print('time_window: ', self.time_window)
         return True
 
     def update(self):

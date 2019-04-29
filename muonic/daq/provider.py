@@ -17,9 +17,10 @@ except ImportError:
     pass
 
 # from exception.py
-from muonic.daq import DAQIOError, DAQMissingDependencyError 
+from .exceptions import DAQIOError, DAQMissingDependencyError 
 # from simulation.py & connection.py 
-from muonic.daq import DAQSimulationConnection, DAQConnection
+from .simulation import DAQSimulationConnection
+from .connection import DAQConnection
 
 """
 #################################################################
