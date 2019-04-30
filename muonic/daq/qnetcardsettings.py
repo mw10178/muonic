@@ -2,14 +2,17 @@
 Class object for application settings store
 """
 from __future__ import print_function
-from .exceptions import DAQIOError, DAQMissingDependencyError
-import time
 import numpy as np
+import time
+import sys, os
+import json
+from datetime import datetime
 
+from .exceptions import DAQIOError, DAQMissingDependencyError
 #__all__ = ["update_setting", "have_setting", "get_setting",
 #           "remove_setting", "update_settings",
 #           "apply_default_settings", "dump_settings"]
-class  DAQCardSettings():
+class  QnetCardSettings():
     '''
     Utils:
     ======
@@ -59,18 +62,75 @@ class  DAQCardSettings():
 
     _settings = dict()
 
-    def __init__(self, daq, logger, default=False, status_report=False):
+    _cardinfo = dict()
+
+    def __init__(self, daq, logger, path_to_save=None, default=False, status_report=False):
         self.daq = daq
         self.logger = logger
+        self.path_to_save = path_to_save
         if default:
             self.apply_default_settings()
         else:
             self.get_configuration_from_daq_card()
-            self.enable_write_pulses()
+            self.disable_write_pulses()
         if status_report:
             self.enable_status_report()
         else:
             self.disable_status_report()
+
+    def save(self, name=None):
+        '''
+        Saves the settings in a json file only
+        if path to save is defined by init of the qnetsettings.
+
+        If settings folder is not in ~/muonic_data it will
+        be created.
+
+        Parameter:
+        ==========
+            name: string
+                name of the data file without suffix
+                default: None -> current date
+        '''
+        if self.path_to_save is None:
+            self.logger.info('No path defined.')
+            return
+        if not os.path.isdir(self.path_to_save):
+            self.logger.info('Did not found muonic\'s settings folder.')
+            os.path.mkdir(self.path_to_save)
+            self.logger.info('Created: %s'%muonic.path_to_save)
+
+        if name is None:
+            name = datetime.today().strftime('%Y-%m-%d')
+        dir = self.path_to_save + '/' + name + '.qnet'
+        with open(dir, 'w') as f:  # writing JSON object
+            json.dump(self._settings, f)
+        self.logger.info('Saved the Qnet settings into %s'%name)
+
+    def load(self, name=None):
+        '''
+        Load a qnet settings json file from settings folder in
+        ~/muonic_data/settings. If name is None, it will print
+        available setting files without suffix.
+
+        Parameter:
+        ==========
+            name: string
+                name of the data file without suffix
+                default: None -> show list of files
+        '''
+        if name is None:
+            l = []
+            for e in os.listdir(self.path_to_save):
+                if e.endswith('.qnet'): l.append(e[:-5])
+            print('Available settings are: \n'+str(l))
+            return
+        dir = self.path_to_save + '/' + name + '.qnet'
+        with open(dir, 'r') as f:
+            self._settings = json.load(f)
+        self.logger.info('Loaded the Qnet settings from %s'%name)
+
+        self.update_settings(self._settings)
 
     def update_setting(self, key, value):
         """
@@ -132,12 +192,12 @@ class  DAQCardSettings():
         if isinstance(newsettings, dict):
             keys = self._settings.keys()
             # set channel configuration
-            channel_config = [newsettings['active_ch%d'%i] for i in range(4)]
+            active_ch = [newsettings['active_ch%d'%i] for i in range(4)]
             coincidence_config = [newsettings['coincidence%d'%i]
                                    for i in range(4)]
             veto = newsettings['veto']
             veto_config = [newsettings['veto_ch%d'%i] for i in range(3)]
-            self.set_channel_config(channel_config, coincidence_config,
+            self.set_channel_config(active_ch, coincidence_config,
                       veto, veto_config)
 
             # set Thresholds
@@ -183,8 +243,8 @@ class  DAQCardSettings():
         :returns: None
         """
         # active channels
-        channel_config = {i:self._settings['active_ch%d'%i] for i in range(4)}
-        print("Active channels:\n"+"="*16+"\n%s\n"%str(channel_config))
+        active_ch = {i:self._settings['active_ch%d'%i] for i in range(4)}
+        print("Active channels:\n"+"="*16+"\n%s\n"%str(active_ch))
         # coincedence
         coincidence_mask = np.array([self._settings['coincidence%d'%i]
                                for i in range(4)])
@@ -200,23 +260,29 @@ class  DAQCardSettings():
                                for i in range(3)])
         veto_config = {(i+1):self._settings['veto_ch%d'%i] for i in range(3)}
         print('Veto is ' + ('active.' if veto else 'inactive.') )
-        print('Veto channels are: ', np.array(['1', '2',
-                  '3'])[veto_mask], '\n')
+        print('Veto channel is:', np.array(['1', '2',
+                  '3'])[veto_mask][0], '\n')
 
-        # set Thresholds
+        # Thresholds
         threshold = {'Ch%d'%i:self._settings['threshold_ch%d'%i]
-                            for i in range(4)}
+                        for i in range(4)}
         print("Thresholds:\n"+"="*11+"\n%s\n"%str(threshold))
 
-        # set status report
+        # Status report
         wds = self._settings['write_daq_status']
         sd = self._settings['scalar_data']
         rc = self._settings['reset_counter']
-        print('Automatic status report is '+('enabled.' if wds > 0 else 'disabled.'))
+        print('Automatic status report is '+('enabled.' if wds > 0 else
+                'disabled.'))
         if wds > 0:
             print('Report every %d min.'%wds)
             if sd: print('Counts will be shown.')
             if rc: print('Counters will be reseted at each report.')
+
+        # written pulses
+        wp = self._settings['write_pulses']
+        print('QnetCard sends informations (TMC) of detected pulses.' if wp else
+                'QnetCard does not send pulse informations (TMC).')
 
     def get_thresholds_from_msg(self, msg):
         """
@@ -299,7 +365,7 @@ class  DAQCardSettings():
             msg = bin(int(msg[1][3:], 16))[2:].zfill(8)
             veto_config = msg[0:2]
             coincidence_config = msg[2:4]
-            channel_config = msg[4:8]
+            active_ch = msg[4:8]
 
             self.update_setting("gate_width", int(coincidence_time, 16) * 10)
 
@@ -313,7 +379,7 @@ class  DAQCardSettings():
             # update channel config
             for i in range(4):
                 self.update_setting("active_ch%d" % i,
-                               channel_config[3 - i] == '1')
+                               active_ch[3 - i] == '1')
 
             # update coincidence config
             for i, seq in enumerate(['00', '01', '10', '11']):
@@ -381,12 +447,12 @@ class  DAQCardSettings():
         as well as the gate width from the DAQ card.
         """
         # get the thresholds
-        self.get_threshold_from_card() 
+        self.get_threshold_from_card()
 
         # get the channel config
         self.daq.put('DC')
         # give the daq some time to react
-        time.sleep(0.5)
+        time.sleep(0.2)
 
         while self.daq.data_available():
             try:
@@ -396,7 +462,22 @@ class  DAQCardSettings():
             except DAQIOError:
                 self.logger.debug("Queue empty!")
 
+    def get_channel_configurations(self):
+        '''
+        Return:
+        =======
+            Channel configurations.
+        '''
+        self.get_configuration_from_daq_card()
 
+        active_ch = [self._settings['active_ch%d'%i]
+                               for i in range(4)]
+        coincidence_config = [self._settings['coincidence%d'%i]
+                               for i in range(4)]
+        veto = self._settings['veto']
+        veto_config = [self._settings['veto_ch%d'%i]
+                               for i in range(3)]
+        return active_ch, coincidence_config, veto, veto_config
 
 
     def set_thresholds(self, thresholds):
@@ -420,10 +501,103 @@ class  DAQCardSettings():
         else:
             self.logger.info('List must have a maximal length of 4. ')
 
-    def set_channel_config(self, channel_config, coincidence_config,
+    def set_active_channels(self, channels):
+        '''
+        Change state of the channels.
+
+        Parameters:
+        ===========
+            channels: list or tuple of integer from 0 to 3
+                Channels which shall be active.
+        '''
+        (active_ch, coincidence_config,
+            veto, veto_config) = self.get_channel_configurations()
+
+        active_ch = [i in channels for i in range(4)]
+
+        self.set_channel_config(active_ch, coincidence_config,
+                              veto, veto_config)
+        self.logger.info('New active channels are %s'%str(channels))
+
+
+    def set_coincidence(self, n):
+        '''
+        Change the number of channels which need to be coincident
+        to generate a trigger.
+
+        Parameter:
+        ==========
+            n: int 1 to 4
+        '''
+        if n < 1 or n > 4:
+            print('Argument needs to be between 1 and 4.')
+            return
+
+        (active_ch, coincidence_config,
+            veto, veto_config) = self.get_channel_configurations()
+
+        coincidence_config = [False for i in range(4)]
+        coincidence_config[n-1] = True
+
+        self.set_channel_config(active_ch, coincidence_config,
+                              veto, veto_config)
+        coincidence_mask = np.array([self._settings['coincidence%d'%i]
+                               for i in range(4)])
+        self.logger.info('New coincedence is %s'%str(np.array(['Set off',
+            'Twofold', 'Threefold', 'Fourfold'])[coincidence_mask][0]))
+
+    def enable_veto(self):
+        '''
+        Enable vetoing.
+        '''
+        (active_ch, coincidence_config,
+            veto, veto_config) = self.get_channel_configurations()
+        self.set_channel_config(active_ch, coincidence_config,
+                              True, veto_config)
+        if self._settings['veto']:
+            self.logger.info('Vetoing has been enabled')
+        else:
+            raise SystemError("Something went wrong.")
+
+    def disable_veto(self):
+        '''
+        Enable vetoing.
+        '''
+        (active_ch, coincidence_config,
+            veto, veto_config) = self.get_channel_configurations()
+        self.set_channel_config(active_ch, coincidence_config,
+                              False, veto_config)
+        if not self._settings['veto']:
+            self.logger.info('Vetoing has been enabled')
+        else:
+            raise SystemError("Something went wrong.")
+
+    def set_veto_channel(self, n):
+        '''
+        Set the channels which shall work as veto.
+        Only channel on of 1,2 or 3 can be used as veto.
+
+        Parameter:
+        ==========
+            n: int 1 to 3
+        '''
+        (active_ch, coincidence_config,
+            veto, veto_config) = self.get_channel_configurations()
+
+        veto_config = [False for i in range(3)]
+        veto_config[n-1] = True
+
+        self.set_channel_config(active_ch, coincidence_config,
+                              True, veto_config)
+        veto_mask = np.array([self._settings['veto_ch%d'%i]
+                               for i in range(3)])
+        self.logger.info('New veto is channel %s'%str(np.array(['1',
+            '2', '3'])[veto_mask][0]))
+
+    def set_channel_config(self, active_ch, coincidence_config,
                           veto, veto_config):
         '''
-        Change the channel configuration of the DAQCard:
+        Change the channel configuration of the QnetCard:
         Which channels are active: 0,1,2,3?
         How many coincident signals are needed for the trigger?
         Are there a channel which works as veto? --> para: veto
@@ -431,7 +605,7 @@ class  DAQCardSettings():
 
         Parameters:
         ===========
-            channel_config: list of bool, len = 4
+            active_ch: list of bool, len = 4
                 Active channels
                 default=None
             coincidence_config: list of bool, len = 4
@@ -445,15 +619,15 @@ class  DAQCardSettings():
                 default=None
         '''
 
-        # channel_config and veto_config input with respect to unambiguity
+        # active_ch and veto_config input with respect to unambiguity
         if sum(coincidence_config) > 1:
             self.logger.info("I have got an ambiguous input for"+
                 "coincidence_config: \n%s "%str(coincidence_config)+
                 "and used the default instead.")
             for i in range(4):
-                channel_config[i] = self.get_setting("coincidence%d" % i)
+                active_ch[i] = self.get_setting("coincidence%d" % i)
         elif sum(coincidence_config) == 0:
-                channel_config[0] = True
+                active_ch[0] = True
 
         if sum(veto_config) > 1:
             self.logger.info("I have got an ambiguous input for"+
@@ -465,11 +639,12 @@ class  DAQCardSettings():
         # update the settings dictionary with resp. active channels,
         # veto state and veto channel
         for i in range(4):
-            self.update_setting("active_ch%d" % i, channel_config[i])
+            self.update_setting("active_ch%d" % i, active_ch[i])
             self.update_setting("coincidence%d" % i, coincidence_config[i])
         self.update_setting("veto", veto)
         for i in range(3):
-            self.update_setting("veto_ch%d" % i, veto_config[i])
+            self.update_setting("veto_ch%d" % i,
+                veto_config[i] if veto else False)
 
         # build daq message to apply the new config to the card
         tmp_msg = ""
@@ -500,7 +675,7 @@ class  DAQCardSettings():
         channel_set = False
         enable = ['0', '0', '0', '0']
 
-        for i, active in enumerate(reversed(channel_config)):
+        for i, active in enumerate(reversed(active_ch)):
             if active:
                 enable[i] = '1'
                 channel_set = True
@@ -517,7 +692,7 @@ class  DAQCardSettings():
 
         for i in range(4):
             self.logger.debug("channel%d selected %s" %
-                              (i, channel_config[i]))
+                              (i, active_ch[i]))
 
         for i, name in enumerate(["singles", "twofold",
                                   "threefold", "fourfold"]):

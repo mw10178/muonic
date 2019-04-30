@@ -2,6 +2,8 @@
 The muonic package
 """
 from os import getenv, path, pardir
+from .daq.qnetcard import QnetCard
+from .daq.muonicpro import MuonicPro
 
 AUTHORS = [
     ("Robert Franke", "robert.franke@desy.de"),
@@ -17,7 +19,7 @@ DOC_PATH = path.abspath(path.join(
 
 DATA_PATH = path.join(getenv('HOME'), 'muonic_data')
 
-__all__ = ["util", "daq", "analysis", "gui", "ui"]
+__all__ = ["util", "daq", "analysis", "gui", "ui", "DATA_PATH", "DOC_PATH"]
 
 __version__ = "4.0.0"
 __author__ = ", ".join([author[0] for author in AUTHORS])

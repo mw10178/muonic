@@ -6,6 +6,6 @@ from .exceptions import DAQIOError, DAQMissingDependencyError
 from .simulation import DAQSimulationConnection, DAQSimulationServer
 from .connection import DAQConnection, DAQServer
 from .provider import DAQClient, DAQProvider
-from .DAQCard import DAQCard
+from .qnetcard import QnetCard
 
 __all__ = ["exceptions", "simulation", "connection", "provider"]

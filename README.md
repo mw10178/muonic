@@ -30,6 +30,7 @@ muonic needs the following packages to be installed (list may not be complete!)
 * python-serial
 * python-future
 
+
 ###installation with pip
 
 Muonic can be installed using pip via
@@ -210,4 +211,3 @@ The edit field can be used to send messages to the DAQ. For an overview over the
 To issue such an command periodically, you can use the button 'Periodic Call'
 
 _The two most important DAQ commands are 'CD' ('counter disable') and 'CE' ('counter enable'). Pulse information is only given out by the DAQ if the counter is set to enabled. All pulse related features may not work properly if the counter is set to disabled._
-
