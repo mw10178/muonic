@@ -17,6 +17,7 @@ class MuonicPro():
             logger.setLevel(logging.DEBUG if verbose else logging.INFO)
             logger.addHandler(ch)
         self.logger = logger
+
         # define path to save files and
         # generate folder if data folder is not created
         self.path_to_save_data = muonic.DATA_PATH
@@ -31,3 +32,12 @@ class MuonicPro():
         # start communication with Qnet Card
         self.qnetcard = QnetCard(path_to_save=self.path_to_save_settings,
                 daq=daq, logger=self.logger, port=port, sim=sim, verbose=verbose)
+
+    def __del__(self):
+        '''
+        See del in qnetcard
+
+        Function to terminate all threads.
+        '''
+        self.logger.info('Terminate threads.')
+        self.qnetcard.__del__()

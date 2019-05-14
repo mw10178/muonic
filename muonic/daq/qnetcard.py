@@ -69,15 +69,12 @@ class QnetCard():
                     'has started.'
                     )
 
-        # set up settings class object to handle all settings
-        self.settings = QnetCardSettings(self.daq, self.logger, path_to_save)
-        self.settings.get_configuration_from_daq_card()
 
-        # start multiprocessing manager for distribute incomming messages from 
-        # QnetCard to multiprocessing lists and react for incomming 
+        # start multiprocessing manager for distribute incomming messages from
+        # QnetCard to multiprocessing lists and react for incomming
         # settings like threshold and channel informations
         self.multiprocessing_mananger = multiprocessing.Manager()
-        pulse_data = self.multiprocessing_mananger.list() 
+        pulse_data = self.multiprocessing_mananger.list()
         status_data = self.multiprocessing_mananger.list()
         gps_data = self.multiprocessing_mananger.list()
         counter_data = self.multiprocessing_mananger.list()
@@ -90,26 +87,46 @@ class QnetCard():
         self.distribute_thread.deamon = True
         self.distribute_thread.start()
 
+        # set up settings class object to handle all settings
+        self.settings = QnetCardSettings(self.daq, self.logger,
+            self.multiprocessing_mananger, path_to_save)
+        self.settings.get_configuration_from_daq_card()
+
+    def __del__(self):
+        '''
+        Function to terminate distribution thread.
+
+
+        https://stackoverflow.com/questions/14976430/python-threads-thread-is-not-informed-to-stop
+        __del__ is not called as long as there are references to self,
+        and you have one such reference in the background thread itself:
+        in the self argument of def startThread(self):
+        '''
+        self.logger.info('Terminate distribution thread.')
+        self.distribute_thread.terminate()
+
+
     def distribute(self):
         '''
         Function which interpretes incomming messages
-        from the multiprocessing output queue / zmq stack of the provider 
+        from the multiprocessing output queue / zmq stack of the provider
         and distribute those to the multiprocessing lists in the data dictionary.
-         
+
         THE FOLLOWING FUNCTIONS IN QNETCARDSETTINGS NEEDS TO CHANGED:
         get_channel_configurations
         get_threshold_from_card
         get_configuration_from_daq_card
-        
+
         Die Funktionen von settings dürfen nichts mehr aus dem Queue entfernen. Dies
         Übernimmt distribute und übergibt es an settings.update_settings_from_msg
-        
+
         Kann der Thread die daten von settings verändern?
-        Müssen die Daten (das dict) von settings auch ein multiprocessing object sein?   
-        Vlt multiprocessing.manager.dict? Dann muss settings nach manager initialisiert 
+        Müssen die Daten (das dict) von settings auch ein multiprocessing object sein?
+        Vlt multiprocessing.manager.dict? Dann muss settings nach manager initialisiert
         werden und manager dem settings übergeben werden.
         '''
-        pass
+        while True:
+            time.sleep(1)
 
     def help_card(self, page=None, show=True):
         '''
@@ -204,5 +221,3 @@ class QnetCard():
 
         self.daq.put(msg_str)
         return self.flush_output()
-        
-

@@ -60,14 +60,20 @@ class  QnetCardSettings():
             "threshold_ch3": 300           # 22
         }
 
-    _settings = dict()
 
-    _cardinfo = dict()
-
-    def __init__(self, daq, logger, path_to_save=None, default=False, status_report=False):
+    def __init__(self, daq, logger, multiprocessing_mananger, path_to_save=None, default=False, status_report=False):
+        '''
+        daq: Daq Provider to communicate with hardware
+        logger:
+        multiprocessing_mananger: Multiprocessing-manager to generate dictionary
+            which can be accessed by mutiple threads
+        '''
         self.daq = daq
         self.logger = logger
         self.path_to_save = path_to_save
+        self._settings = multiprocessing_mananger.dict()
+        self._cardinfo = multiprocessing_mananger.dict()
+
         if default:
             self.apply_default_settings()
         else:
@@ -154,11 +160,11 @@ class  QnetCardSettings():
     def update_settings_from_msg(self, msg):
         '''
         Use input msg from card and update the settings
-        
+
         Kann der Thread die variablen verändern?
         '''
         pass
-    
+
 
     def have_setting(self, key):
         """
@@ -187,7 +193,7 @@ class  QnetCardSettings():
 
     def apply_settings(self, newsettings):
         """
-        Take dictionary and apply settings on the card. 
+        Take dictionary and apply settings on the card.
 
         :param newsettings: settings dictionary
         :type settings: dict
@@ -269,7 +275,7 @@ class  QnetCardSettings():
         veto_config = {(i+1):self._settings['veto_ch%d'%i] for i in range(3)}
         print('Veto is ' + ('active.' if veto else 'inactive.') )
         print('Veto channel is:', np.array(['1', '2',
-                  '3'])[veto_mask][0], '\n')
+                  '3'])[veto_mask], '\n')
 
         # Thresholds
         threshold = {'Ch%d'%i:self._settings['threshold_ch%d'%i]
