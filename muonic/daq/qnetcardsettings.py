@@ -10,7 +10,7 @@ from datetime import datetime
 
 from .exceptions import DAQIOError, DAQMissingDependencyError
 #__all__ = ["update_setting", "have_setting", "get_setting",
-#           "remove_setting", "update_settings",
+#           "remove_setting", "apply_settings",
 #           "apply_default_settings", "dump_settings"]
 class  QnetCardSettings():
     '''
@@ -130,7 +130,7 @@ class  QnetCardSettings():
             self._settings = json.load(f)
         self.logger.info('Loaded the Qnet settings from %s'%name)
 
-        self.update_settings(self._settings)
+        self.apply_settings(self._settings)
 
     def update_setting(self, key, value):
         """
@@ -151,6 +151,14 @@ class  QnetCardSettings():
 
         self._settings[key] = value
 
+    def update_settings_from_msg(self, msg):
+        '''
+        Use input msg from card and update the settings
+        
+        Kann der Thread die variablen verändern?
+        '''
+        pass
+    
 
     def have_setting(self, key):
         """
@@ -177,9 +185,9 @@ class  QnetCardSettings():
 
 
 
-    def update_settings(self, newsettings):
+    def apply_settings(self, newsettings):
         """
-        Add settings from dict.
+        Take dictionary and apply settings on the card. 
 
         :param newsettings: settings dictionary
         :type settings: dict
@@ -233,7 +241,7 @@ class  QnetCardSettings():
         :type clear: bool
         :returns: None
         """
-        self.update_settings(self._default_settings)
+        self.apply_settings(self._default_settings)
 
 
     def dump_settings(self):
@@ -412,6 +420,13 @@ class  QnetCardSettings():
             self.logger.debug("Was not able to interprete:\n%s"%msg)
             return False
 
+
+
+#############################################################
+#-----------------------------------------------------------#
+#############################################################
+
+
     def get_threshold_from_card(self):
         """
         Explicitly scan message for threshold information.
@@ -434,12 +449,6 @@ class  QnetCardSettings():
 
             except DAQIOError:
                 self.logger.debug("Queue empty!")
-
-
-#############################################################
-#-----------------------------------------------------------#
-#############################################################
-
 
     def get_configuration_from_daq_card(self):
         """

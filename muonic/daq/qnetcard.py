@@ -1,3 +1,4 @@
+import multiprocessing
 from .provider import DAQClient, DAQProvider
 from .qnetcardsettings import QnetCardSettings
 import logging
@@ -72,6 +73,44 @@ class QnetCard():
         self.settings = QnetCardSettings(self.daq, self.logger, path_to_save)
         self.settings.get_configuration_from_daq_card()
 
+        # start multiprocessing manager for distribute incomming messages from 
+        # QnetCard to multiprocessing lists and react for incomming 
+        # settings like threshold and channel informations
+        self.multiprocessing_mananger = multiprocessing.Manager()
+        pulse_data = self.multiprocessing_mananger.list() 
+        status_data = self.multiprocessing_mananger.list()
+        gps_data = self.multiprocessing_mananger.list()
+        counter_data = self.multiprocessing_mananger.list()
+        self.data = {'pulse': pulse_data,
+                     'status': status_data,
+                     'gps': gps_data,
+                     'counts': counter_data}
+        # set up and start thread
+        self.distribute_thread = multiprocessing.Process(target=self.distribute)
+        self.distribute_thread.deamon = True
+        self.distribute_thread.start()
+
+    def distribute(self):
+        '''
+        Function which interpretes incomming messages
+        from the multiprocessing output queue / zmq stack of the provider 
+        and distribute those to the multiprocessing lists in the data dictionary.
+         
+        THE FOLLOWING FUNCTIONS IN QNETCARDSETTINGS NEEDS TO CHANGED:
+        get_channel_configurations
+        get_threshold_from_card
+        get_configuration_from_daq_card
+        
+        Die Funktionen von settings dürfen nichts mehr aus dem Queue entfernen. Dies
+        Übernimmt distribute und übergibt es an settings.update_settings_from_msg
+        
+        Kann der Thread die daten von settings verändern?
+        Müssen die Daten (das dict) von settings auch ein multiprocessing object sein?   
+        Vlt multiprocessing.manager.dict? Dann muss settings nach manager initialisiert 
+        werden und manager dem settings übergeben werden.
+        '''
+        pass
+
     def help_card(self, page=None, show=True):
         '''
         Help containing a list of all ASCII commands from the DAQ Card.
@@ -141,7 +180,7 @@ class QnetCard():
         '''
         self.daq.put("RB")
 
-    def send_command_and_retrieve(self,msg_str, force=False):
+    def send_command_and_retrieve(self, msg_str, force=False):
         '''
         Send a string to the QnetCard.
         Use help_card for command overview.
@@ -154,6 +193,7 @@ class QnetCard():
         =======
             List of received strings from card.
         '''
+        # there are commands user should not send manually
         unsecure = msg_str[:2] in ['TL', 'WC', 'ST', 'CE', 'CD']
         unsecure&= 2 < len(msg_str) # only if str is longer it is likely a command
         unsecure&= not force
@@ -164,3 +204,5 @@ class QnetCard():
 
         self.daq.put(msg_str)
         return self.flush_output()
+        
+
