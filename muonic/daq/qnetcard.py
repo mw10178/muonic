@@ -27,14 +27,33 @@ class QnetCard():
         verbose: bool
             Changes the level of the self initialized logger to "logging.DEBUG".
             Default: False
+        period: float
+            Period in interpreting data in seconds.
+            Default: 1
 
     Functions:
     ==========
         help_com
+        terminate
+        distribute
+        help_card
+        flush_output
+        flush_input
+        reset_counter
+        send_command_and_retrieve
+
+    Variables:
+    ==========
+        _multiprocessing_mananger
+        _distribute_running
+        _distribute_period
+        _distribute_thread
+
     '''
 
 
-    def __init__(self, path_to_save=None, daq=None, logger=None, port=None, sim=False, verbose=False):
+    def __init__(self, path_to_save=None, daq=None, logger=None, port=None,
+                    sim=False, verbose=False, period=1):
         # set up logger
         if logger is None:
             formatter = logging.Formatter("%(levelname)s:%(process)d:%(module)s:" +
@@ -73,44 +92,54 @@ class QnetCard():
         # start multiprocessing manager for distribute incomming messages from
         # QnetCard to multiprocessing lists and react for incomming
         # settings like threshold and channel informations
-        self.multiprocessing_mananger = multiprocessing.Manager()
-        pulse_data = self.multiprocessing_mananger.list()
-        status_data = self.multiprocessing_mananger.list()
-        gps_data = self.multiprocessing_mananger.list()
-        counter_data = self.multiprocessing_mananger.list()
-        self.data = {'pulse': pulse_data,
-                     'status': status_data,
-                     'gps': gps_data,
-                     'counts': counter_data}
+        self._multiprocessing_mananger = multiprocessing.Manager()
+        # Bool to stop distribution thread via distribute
+        self._distribute_running = self._multiprocessing_mananger.Value(bool,
+                                        True)
+        self._distribute_period = self._multiprocessing_mananger.Value(float,
+                                        True)
+        self.data_string = {'pulse':   self._multiprocessing_mananger.list(),
+                             'status':  self._multiprocessing_mananger.list(),
+                             'gps':     self._multiprocessing_mananger.list(),
+                             'counts':  self._multiprocessing_mananger.list(),
+                             'other':   self._multiprocessing_mananger.list()}
+        self.data = {'pulse':   self._multiprocessing_mananger.list(),
+                             'status':  self._multiprocessing_mananger.list(),
+                             'gps':     self._multiprocessing_mananger.list(),
+                             'counts':  self._multiprocessing_mananger.list()}
         # set up and start thread
-        self.distribute_thread = multiprocessing.Process(target=self.distribute)
-        self.distribute_thread.deamon = True
-        self.distribute_thread.start()
+        self._distribute_thread = multiprocessing.Process(target=self.distribute)
+        self._distribute_thread.deamon = True
+        self._distribute_thread.start()
 
         # set up settings class object to handle all settings
         self.settings = QnetCardSettings(self.daq, self.logger,
-            self.multiprocessing_mananger, path_to_save)
+                            self._multiprocessing_mananger, path_to_save)
         self.settings.get_configuration_from_daq_card()
 
-    def __del__(self):
+    def terminate(self):
         '''
         Function to terminate distribution thread.
 
 
-        https://stackoverflow.com/questions/14976430/python-threads-thread-is-not-informed-to-stop
+        https://stackoverflow.com/questions/14976430
+            /python-threads-thread-is-not-informed-to-stop
         __del__ is not called as long as there are references to self,
         and you have one such reference in the background thread itself:
-        in the self argument of def startThread(self):
+        in the self argument of def distribute(self):
         '''
-        self.logger.info('Terminate distribution thread.')
-        self.distribute_thread.terminate()
+        if self._distribute_thread.is_alive():
+            self.logger.info('Terminate distribution thread.')
+            self._distribute_running.set(False)
+            self._distribute_thread.terminate()
 
 
     def distribute(self):
         '''
         Function which interpretes incomming messages
         from the multiprocessing output queue / zmq stack of the provider
-        and distribute those to the multiprocessing lists in the data dictionary.
+        and distribute those to the multiprocessing lists in the data
+        dictionary.
 
         THE FOLLOWING FUNCTIONS IN QNETCARDSETTINGS NEEDS TO CHANGED:
         get_channel_configurations
@@ -125,8 +154,27 @@ class QnetCard():
         Vlt multiprocessing.manager.dict? Dann muss settings nach manager initialisiert
         werden und manager dem settings übergeben werden.
         '''
-        while True:
-            time.sleep(1)
+        i = 0
+        while self._distribute_running.get():
+            time.sleep(self._distribute_period)
+            output = self.flush_output()
+            for s in output:
+                if 1:
+                    self.data_string['pulse'].append(s)
+                elif 1:
+                    self.data_string['status'].append(s)
+                    self.interprete_status(s)
+                elif 1:
+                    self.data_string['gps'].append(s)
+                elif 1:
+                    self.data_string['counts'].append(s)
+                else:
+                    self.data_string['other'].append(s)
+
+        self.logger.info('Distribution deamon terminated.')
+
+    def interprete_status(self, string):
+        pass
 
     def help_card(self, page=None, show=True):
         '''

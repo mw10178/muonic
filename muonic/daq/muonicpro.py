@@ -39,5 +39,4 @@ class MuonicPro():
 
         Function to terminate all threads.
         '''
-        self.logger.info('Terminate threads.')
-        self.qnetcard.__del__()
+        self.qnetcard.terminate()

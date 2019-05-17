@@ -72,7 +72,6 @@ class  QnetCardSettings():
         self.logger = logger
         self.path_to_save = path_to_save
         self._settings = multiprocessing_mananger.dict()
-        self._cardinfo = multiprocessing_mananger.dict()
 
         if default:
             self.apply_default_settings()
