@@ -464,6 +464,8 @@ class ScalarsCanvas(BasePlotCanvas):
             self.logger.info("An error with the legend occurred: %s" % e)
             self.ax.legend(loc=2)
 
+        # reduce length of the lists to ensure that the plot has a
+        # maximal range of max_length
         if len(self.channel_data[0]) > self.max_length:
             for ch in range(4):
                 self.channel_data[ch].remove(self.channel_data[ch][0])
@@ -544,5 +546,5 @@ class PulseWidthCanvas(BaseHistogramCanvas):
     def update_plot(self, data):
         BaseHistogramCanvas.update_plot(self, data)
         self.ax.set_title(self.ax_title)
-        self.ax.figure.tight_layout()
+        #self.ax.figure.tight_layout()
         self.fig.canvas.draw()

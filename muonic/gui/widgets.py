@@ -164,7 +164,7 @@ class RateWidget(BaseWidget):
         # 4:    trigger
         self.previous_scalars = self.new_scalar_buffer()
         self.scalar_buffer = self.new_scalar_buffer()
-        
+
         # maximum and minimum seen rate across channels and trigger
         self.max_rate = 0
         self.min_rate = 0
@@ -190,8 +190,8 @@ class RateWidget(BaseWidget):
         self.table.setColumnWidth(0, 85)
         self.table.setColumnWidth(1, 60)
         self.table.setHorizontalHeaderLabels(["rate [1/s]", "counts"])
-        self.table.setVerticalHeaderLabels(["channel 0", "channel 1", 
-                                            "channel 2", "channel 3", 
+        self.table.setVerticalHeaderLabels(["channel 0", "channel 1",
+                                            "channel 2", "channel 3",
                                             "trigger"])
         self.table.horizontalHeader().setStretchLastSection(True)
 
@@ -300,7 +300,6 @@ class RateWidget(BaseWidget):
         :return: list of ints
         """
         scalars = self.new_scalar_buffer()
-
         for item in msg.split():
             for i in range(self.SCALAR_BUF_SIZE):
                 if item.startswith("S%d" % i) and len(item) == 11:
@@ -323,7 +322,7 @@ class RateWidget(BaseWidget):
 
         # extract scalars from daq message
         scalars = self.extract_scalars_from_message(msg)
-
+        print(scalars)
         # if this is the first time calculate is called, we want to set all
         # counters to zero. This is the beginning of the first bin.
         if self.first_cycle:
@@ -350,7 +349,6 @@ class RateWidget(BaseWidget):
         self.rates += [time_window]
         # scalars for channels and trigger
         self.rates += [_scalar for _scalar in scalar_diffs]
-
         self.time_window += time_window
 
         # add scalar diffs for channels and trigger to buffer
@@ -367,7 +365,7 @@ class RateWidget(BaseWidget):
         if max_rate > self.max_rate:
             self.max_rate = max_rate
 
-        # write the rates to data file. we have to catch IOErrors, can occur
+        # write the rates to data R-file. we have to catch IOErrors, can occur
         # if program is exited
         if self.active():
             try:
@@ -386,6 +384,8 @@ class RateWidget(BaseWidget):
             except ValueError:
                 self.logger.warning("ValueError, Rate plot data was not " +
                                     "written to %s" % repr(self.data_file))
+        print('rates: ', self.rates)
+        print('time_window: ', self.time_window)
         return True
 
     def update(self):
@@ -613,7 +613,7 @@ class PulseAnalyzerWidget(BaseWidget):
         self.pulse_width_canvases = []
         self.pulse_width_toolbars = []
         for i in range(4):
-            self.pulse_width_canvases.append((PulseWidthCanvas(self, logger, 
+            self.pulse_width_canvases.append((PulseWidthCanvas(self, logger,
                                                     title="Pulse Widths Ch %d"%i)))
 
             self.pulse_width_toolbars.append(NavigationToolbar(self.pulse_width_canvases[-1], self))
@@ -655,7 +655,7 @@ class PulseAnalyzerWidget(BaseWidget):
                 else:
                     pulse_widths.append(0.)
             self.pulse_widths[i] = pulse_widths
-        
+
     def update(self):
         """
         Update plot canvases
@@ -842,7 +842,7 @@ class StatusWidget(BaseWidget):
 
         :returns: None
         """
-        self.refresh_button.setDisabled(True)        
+        self.refresh_button.setDisabled(True)
         self.logger.debug("Refreshing status information.")
 
         # request status information from DAQ card
@@ -1411,7 +1411,7 @@ class DecayWidget(BaseWidget):
 
         if decay is not None:
             when = datetime.datetime.utcnow()
-            self.event_data.append((decay / 1000, 
+            self.event_data.append((decay / 1000,
                                     when.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]))
             self.muon_counter += 1
             self.last_event_time = when
@@ -1828,7 +1828,7 @@ class GPSWidget(BaseWidget):
         :returns: None
         """
         self.refresh_button.setEnabled(False)
-        self.gps_dump = [] 
+        self.gps_dump = []
         self.logger.info('Reading GPS.')
         self.parent.process_incoming()
         self.active(True)
@@ -1866,7 +1866,7 @@ class GPSWidget(BaseWidget):
         # sometimes, the widget will not register the line where the DG command is put
         if not self.gps_dump[1].startswith('DG'):
             self.msg_offset = -1
-	
+
         gps_time = ''
         pos_fix = 0
         latitude = ''

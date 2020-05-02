@@ -17,7 +17,7 @@ except ImportError:
     # DAQMissingDependencyError will be raised when trying to use zmq
     pass
 
-from muonic.daq import DAQMissingDependencyError
+from .exceptions import DAQMissingDependencyError
 
 
 class DAQSimulation(object):

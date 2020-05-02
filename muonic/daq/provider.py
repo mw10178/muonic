@@ -9,6 +9,7 @@ import logging
 import multiprocessing as mp
 import re
 import queue
+import time
 
 try:
     import zmq
@@ -16,20 +17,56 @@ except ImportError:
     # DAQMissingDependencyError will be raised when trying to use zmq
     pass
 
-from muonic.daq import DAQIOError, DAQMissingDependencyError
-from muonic.daq import DAQSimulationConnection, DAQConnection
+# from exception.py
+from .exceptions import DAQIOError, DAQMissingDependencyError
+# from simulation.py & connection.py
+from .simulation import DAQSimulationConnection
+from .connection import DAQConnection
 
+"""
+#################################################################
+"""
 
 class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
     """
     Base class defining the public API and helpers for the
     DAQ provider implementations
 
-    :param logger: logger object
-    :type logger: logging.Logger
+    Params:
+    =======
+        logger: logging.Logger, default=None
+
+    Functions:
+    ==========
+        __init__(logger=None):
+
+        get(*args):
+            "Get something from the DAQ."
+
+        put(*args):
+            "Send something to the DAQ Card."
+
+        data_available(*args):
+            "Tests if data is available from the DAQ."
+
+        _validate_line(line):
+            "Controles the occurence of unwanted character."
+
+
+    Attributes:
+    ===========
+        LINE_PATTERN: re (regular expression) object
+            "To allow fast validation of the encoded input string from the
+            DAQ Card."
+
     """
 
     LINE_PATTERN = re.compile("^[a-zA-Z0-9+-.,:()=$/#?!%_@*|~' ]*[\n\r]*$")
+    # ^ means all not listed characters in the '[ .. ]' are allowed, * means
+    # that the number those previous listed characters occure is not
+    # important for invalidity. Further \n and \r are allowed in arbitrary
+    # number. $ is defined as either the end of the string, or any location
+    # followed by a newline character
 
     def __init__(self, logger=None):
         if logger is None:
@@ -37,13 +74,19 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
         self.logger = logger
 
     @abc.abstractmethod
-    def get(self, *args):
+    def get(self, *args, val=True):
         """
         Get something from the DAQ.
+        ABSTRACT METHOD, MUST BE OVERRITTEN!
 
-        :param args: queue arguments
-        :type args: list
-        :returns: str or None
+        Params:
+        =======
+            *args: list
+                Queue arguments
+
+        Returns:
+        ========
+            string or None
         """
         return
 
@@ -51,10 +94,17 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
     def put(self, *args):
         """
         Send information to the DAQ.
+        ABSTRACT METHOD, MUST BE OVERRITTEN!
 
-        :param args: queue arguments
-        :type args: list
-        :returns: None
+
+        Params:
+        =======
+            *args: list
+                Queue arguments
+
+        Returns:
+        ========
+            string or None
         """
         return
 
@@ -62,21 +112,33 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
     def data_available(self):
         """
         Tests if data is available from the DAQ.
+        ABSTRACT METHOD, MUST BE OVERRITTEN!
 
-        :returns: int or bool
+        Returns:
+        ========
+            int or Bool
         """
         return
 
-    def _validate_line(self, line):
+    def _validate_line(self, line, val=True):
         """
-        Validate line against pattern. Returns None it the provided line is
-        invalid or the line if it is valid.
+        Validates line against pattern. Returns None if the provided line is
+        invalid, or the line if it is valid.
 
-        :param line: line to validate
-        :type line: str
-        :returns: str or None
+        Params:
+        =======
+            line: string
+                String to be validated.
+                Following char are not allowed in arb. number:
+                    'a-z', 'A-Z', '0-9' and +-.,:()=$/#?!%_@*|~'
+                The appearance of '\n' and '\r' is irrelevant.
+
+        Returns:
+        ========
+            string (valid) or None (not valid string from DAQ)
+
         """
-        if self.LINE_PATTERN.match(line) is None:
+        if self.LINE_PATTERN.match(line) is None and val:
             # Do something more sensible here, like stopping the DAQ then
             # wait until service is restarted?
             self.logger.warning("Got garbage from the DAQ: %s" %
@@ -84,15 +146,74 @@ class BaseDAQProvider(with_metaclass(abc.ABCMeta, object)):
             return None
         return line
 
+    @abc.abstractmethod
+    def what(self):
+        '''
+        Returns a str to find out the current running provider.
+
+        Returns:
+        ========
+            str
+        """
+        '''
+        return
+"""
+#################################################################
+"""
 
 class DAQProvider(BaseDAQProvider):
     """
-    DAQProvider
+    DAQProvider Initializes queue object from multiprocessor class and
+    assembles connection with the DAQConnection class object.
 
-    :param logger: logger object
-    :type logger: logging.Logger
-    :param sim: enables DAQ simulation if set to True
-    :type sim: bool
+    Params:
+    =======
+        logger: logging.Logger, default=None
+        sim: bool, default=False
+            Starts a simulated DAQ Card using saved data.
+
+    Functions:
+    ==========
+        __init__(logger=None, sim=False):
+
+        get(*args):
+            "Get something from the DAQ."
+
+        put(*args):
+            "Send something to the DAQ Card."
+
+        data_available(*args):
+            "Tests if data is available from the DAQ."
+
+        _validate_line(line):
+            "Controles the occurence of unwanted character."
+
+
+    Attributes:
+    ===========
+        logger: logger object
+
+        LINE_PATTERN: re (regular expression) object
+            "To allow fast validation of the encoded input string from the
+            DAQ Card."
+
+        daq: DAQConnection class object
+            Provides basic communication functions.
+
+        out_queue: multiprocess.Queue
+            Queue for Data from DAQ Card.
+
+        in_queue: multiprocess.Queue
+            Queue for Data for DAQ Card.
+
+        read_thread: multiprocess.Process
+            Object to allow execution of muli process.
+            With daq.read as target.
+
+        write_thread: multiprocess.Process
+            Object to allow execution of muli process.
+            With daq.write as target.
+
     """
 
     def __init__(self, logger=None, sim=False):
@@ -106,7 +227,7 @@ class DAQProvider(BaseDAQProvider):
         else:
             self.daq = DAQConnection(self.in_queue, self.out_queue,
                                      self.logger)
-        
+
         # Set up the thread to do asynchronous I/O. More can be made if
         # necessary. Set daemon flag so that the threads finish when the main
         # app finishes
@@ -119,34 +240,64 @@ class DAQProvider(BaseDAQProvider):
                                            name="pWRITER")
             self.write_thread.daemon = True
             self.write_thread.start()
-        
-    def get(self, *args):
+
+    def what(self):
+        '''
+        Returns a str to find out the current running provider.
+
+        Returns:
+        ========
+            str
+        """
+        '''
+        return 'DAQProvider'
+
+    def get(self, *args, val=True):
         """
         Get something from the DAQ.
+        It accesses the queue object. And returns valid string.
 
-        Raises DAQIOError if the queue is empty.
+        Params:
+        =======
+            args: list
+                Queue arguments
 
-        :param args: queue arguments
-        :type args: list
-        :returns: str or None -- next item from the queue
-        :raises: DAQIOError
+        Returns:
+        ========
+            str or None -- next item from the queue
+
+        RAISES:
+        =======
+
+             DAQIOError if the queue is empty.
+
         """
         try:
+            if not self.data_available():
+                raise DAQIOError("Queue is empty")
             line = self.out_queue.get(*args)
-        except queue.Empty:
-            raise DAQIOError("Queue is empty")
+        except:
+            raise DAQIOError("Queue error")
 
-        return self._validate_line(line)
+        return self._validate_line(line, val)
 
     def put(self, *args):
         """
         Send information to the DAQ.
+        By puttning the args to the queue object.
 
-        :param args: queue arguments
-        :type args: list
-        :returns: None
+        Params:
+        =======
+            args: list
+                  Queue arguments
+
+        Returns:
+        ========
+            None
+
         """
         self.in_queue.put(*args)
+        time.sleep(0.2)
 
     def data_available(self):
         """
@@ -162,21 +313,56 @@ class DAQProvider(BaseDAQProvider):
         return size
 
 
+"""
+#################################################################
+"""
+
 class DAQClient(BaseDAQProvider):
     """
-    DAQClient
+    DAQProvider Initializes zmq.Context().socket and
+    assembles connection with the DAQConnection class object.
 
-    Raises DAQMissingDependencyError if zmq is not installed.
+    Params:
+    =======
+        address: str, default='127.0.0.1'
+            address to connect to
+        port: int, default=5556
+            TCP port to connect to
+        logger: logging.Logger, default=None
 
-    :param address: address to connect to
-    :type address: str
-    :param port: TCP port to connect to
-    :type port: int
-    :param logger: logger object
-    :type logger: logging.Logger
-    :raises: DAQMissingDependencyError
+    Functions:
+    ==========
+        __init__(address='127.0.0.1', port=5556, logger=None):
+
+        get(*args):
+            "Get something from the DAQ."
+
+        put(*args):
+            "Send something to the DAQ Card."
+
+        data_available(*args):
+            "Tests if data is available from the DAQ."
+
+        _validate_line(line):
+            "Controles the occurence of unwanted character."
+
+
+    Attributes:
+    ===========
+        logger: logger object
+
+        LINE_PATTERN: re (regular expression) object
+            "To allow fast validation of the encoded input string from the
+            DAQ Card."
+
+        socket: zmq.Context().socket
+            Provides basic communication functions.
+
+    Raises:
+    =======
+        DAQMissingDependencyError: if zmq is not installed.
     """
-    
+
     def __init__(self, address='127.0.0.1', port=5556, logger=None):
         BaseDAQProvider.__init__(self, logger)
         try:
@@ -185,38 +371,69 @@ class DAQClient(BaseDAQProvider):
         except NameError:
             raise DAQMissingDependencyError("no zmq installed...")
 
-    def get(self, *args):
+    def what(self):
+        '''
+        Returns a str to find out the current running provider.
+
+        Returns:
+        ========
+            str
+        """
+        '''
+        return 'DAQClient'
+
+    def get(self, *args, val=True):
         """
         Get something from the DAQ.
+        It accesses the zmq-socket object. And returns valid string.
 
-        Raises DAQIOError if the queue is empty.
+        Params:
+        =======
+            args: list
+                Redundant for queue arguments to fit the syntax
+                of DAQProvider.get. Arguments not used in this function.
 
-        :param args: queue arguments
-        :type args: list
-        :returns: str or None -- next line read from socket
-        :raises: DAQIOError
+        Returns:
+        ========
+            str or None -- next item from socket
+
+        RAISES:
+        =======
+             DAQIOError if the socket is empty or else.
         """
         try:
+            if not self.data_available():
+                raise DAQIOError("Socket empty")
             line = self.socket.recv_string()
         except Exception:
             raise DAQIOError("Socket error")
-        
-        return self._validate_line(line)
+
+        return self._validate_line(line, val)
 
     def put(self, *args):
         """
         Send information to the DAQ.
+        By accessing the zmq-socket object.
 
-        :param args: queue arguments
-        :type args: list
-        :returns: None
+        Params:
+        =======
+            args: list
+                  Socket arguments
+
+        Returns:
+        ========
+            None
+
         """
         self.socket.send_string(*args)
+        time.sleep(0.2)
 
     def data_available(self):
         """
         Tests if data is available from the DAQ.
 
-        :returns: int or bool
+        Returns:
+        ========
+            int or bool
         """
         return self.socket.poll(200)
