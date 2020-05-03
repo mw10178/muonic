@@ -1,8 +1,11 @@
 import multiprocessing
-from .provider import DAQClient, DAQProvider
-from .qnetcardsettings import QnetCardSettings
 import logging
 import time
+
+from .api import DAQClient # zmq socket client, will can choosen by user if port != None
+from .api import DAQProvider # multiprocessing deamon, working with serial connection (DAQConnection or DAQSimulationConnection)  
+from .qnetcardsettings import QnetCardSettings
+from muonic.utlils import getLogger
 
 class QnetCard():
     '''
@@ -55,17 +58,7 @@ class QnetCard():
     def __init__(self, path_to_save=None, daq=None, logger=None, port=None,
                     sim=False, verbose=False, period=1):
         # set up logger
-        if logger is None:
-            formatter = logging.Formatter("%(levelname)s:%(process)d:%(module)s:" +
-                                          "%(funcName)s:%(lineno)d:%(message)s")
-            ch = logging.StreamHandler()
-            ch.setLevel(logging.DEBUG if verbose else logging.INFO)
-            ch.setFormatter(formatter)
-
-            logger = logging.getLogger()
-            logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-            logger.addHandler(ch)
-        self.logger = logger
+        self.logger = logger if logger == None else get_configured_logger()
 
         # set up providers for hardware near communication
         if daq is not None:
