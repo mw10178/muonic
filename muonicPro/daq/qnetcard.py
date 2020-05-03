@@ -155,7 +155,7 @@ class QnetCard():
             time.sleep(self._distribute_period.value)
             output = self.flush_output()
             for s in output:
-                if 1:
+                if 1: # es fehlen die kriterien
                     self.data_string['pulse'].append(s)
                 elif 1:
                     self.data_string['status'].append(s)

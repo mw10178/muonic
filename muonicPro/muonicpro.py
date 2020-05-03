@@ -9,8 +9,6 @@ class MuonicPro():
     def __init__(self, daq=None, logger=None, port=None, sim=False, verbose=False):
         # set loggger
         self.logger = getConfiguredLogger(verbose) if logger == None else logger
-        
-
 
         # define path to save files and
         # generate folder if data folder is not created

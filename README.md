@@ -1,213 +1,115 @@
+# Muonic - QT5 Upgrade
 
-muonic - a python gui for QNET experiments
-================================================
+Benjamin Bastian-Querner, 03.05.2020 
 
-The muonic project provides an interface to communicate with QuarkNet DAQ cards and to perform simple analysis of the generated data.
-Its goal is to ensure easy and stable access to the QuarkNet cards and visualize some of the features of the cards. It is meant to be used in school projects, so it should be easy to use even by people who do not have lots LINUX backround or experience with scientific software. Automated data taking ensure no measured data is lost.
+### Aim of the Upgrade
 
-License and terms of agreement
-----------------------------------
+The graphical user interface (GUI) of the current software runs with pyqt4. It was decided to migrate muonic to run with pyqt5.
 
-Muonic is distributed under the terms of GPL (GNU Public License). With the use of the software you accept the conditions of the GPL. This means also that the authors can not be made responsible for any damage of any kind to hard- or software.
+### Problems by the migration
 
-The Muonic logo is provided with a big thanks from The Particle Zoo http://www.particlezoo.net./
+The current software architecture of [release number 2](https://github.com/CosmicLabDESY/muonic/tree/release2/) does not allow a simple migration to QT5. The ``muonic.gui.application.Application`` run by ``<path to muonic>/muonic.py`` does the data collection from the QnetDAQcard as well as it's configuration. The defined functions to make measurements and analyses of the data, manage the QT-Widgets of the GUI, as well. As QT5 has changed some of its syntaxes, a replacement of the lines with the new functions are not possible. The architecture of the program does not allow us to understand side-effects without a reverse-engineering of the complete software.  The comments do not provide any information about the motivation for these structures. Most of the algorithms are not explained by the comments and must be understood from the code. As the functions in ``muonic.gui.application.Application`` manage multiple program-layers, the algorithms for different layers are mixed. The used programming paradigm is chosen to be object-oriented in its syntax, but the structure of the program is often chosen to be "pragmatic". Sometimes a self made inheritance is used like allocating an attribute called "parent" mixed with python's inheritance (see ``muonic.gui.widgets.BaseWidget``). The "parent" is passed as an argument to this class during it's initialization. Without comments / motivation for this it is in-transparent which class is actually inherited.
 
-muonic setup and installation
------------------------------------
+### Chosen solution
 
-Muonic consists of two main parts:
-1. the python package `muonic`
-2. a python executable
+The software architecture needs to be re-designed. It is important to introduce different layers which combine abstract entities like:
 
-###prerequisites
+* Subclass for communication with the QnetDAQcard
+  * Subsubclass for low level API (available from release2)
+  * Subsubclass or function for sorting the received strings as settings information and raw data 
+  * Subsubclass for managing and storing the settings of the card
+* Subclass for analyses/interpretation of raw data 
+* Subclass for the measurements
+  * Subsubclass for the measurement algorithms
+  * Subsubclass for the analyses of the raw data in terms of the measurements
+* (optional) Subclass for plotting which provides a suitable visualization of the data with ``matplotlib`` without GUI
+* An overall class which gets inherited all this classes 
 
-muonic needs the following packages to be installed (list may not be complete!)
+All subclasses shall be inherited such that the overall class has all the functionalities the user needs. The method must be importable to allow writing individual measurement scripts with the hardware to extend the functionality beyond the implemented measurement scripts. In the case of release 2, an extension was only possible by hacking the software to get the needed data from the background. 
+After the muonic program runs with all its functionality without GUI, the GUI can be set on the top. This will allow to use different kinds of GUI implementations.
 
-* python-scipy
-* python-matplotlib
-* python-numpy
-* python-qt4
-* python-serial
-* python-future
+### Incomplete overview of the program structure release2
 
+* ``muonic.py`` runs ``muonic.gui.application.Application`` (the overall program)
+  * ``muonic.analysis.PulseExtractor`` (Class to analyze the pulse-data)
+    * ``muonic.util``
+  * ``muonic.daq.exceptions`` (Self made exceptions)
+  * ``muonic.gui.dialogs`` (Dialogs/windows of the GUI)
+  * ``muonic.gui.widgets`` (Widgets for the windows, some of the analyses might be done here, as well as, the low-level communication with the card)
+    * ``muonic.daq.provider`` (Provides a socket client and a class which uses multiprocessing to run the deamon from ``connection`` in a seperated thread.)
+      * ``muonic.daq.connection`` (Provides a zmq-socket-server and a daemon. Both work with a serial connection.)
+    * ``muonic.gui.helpers`` 
+    * ``muonic.gui.plot_canvases``
+    * ``muonic.gui.dialogs``
+    * ``muonic.analysis``
+    * ``muonic.util`` 
+  * ``muonic.util`` (Some functions e.g. to create folders and manage their permissions)
 
-###installation with pip
+The ``muonic.py`` runs the ``Application`` method. ``Application`` imports the ``PulseExtractor``, ``Exceptions``, ``Dialogs``, and the ``widgets``. The ``PulseExtractor`` seems to do the raw-data analysis. The ``Dialogs`` are the windows itself, hardcoded. The ``widgets`` are the different sub-routines, which do the analysis and the visualization. The measurement algorithms are coded in the different ``widgets`` and the communication with the QnetDAQCard is done in a low-level manner with the ``Provider``. That means the string commands are hardcoded in the ``widgets``. The different ``widgets`` are doing the multiprocessing.
+Furthermore it is not clear, why there are two implementations of daemons (multiprocessing daemon and the socket-server) to communicate with the card. Both can be chosen from the user, but only one is needed.
 
-Muonic can be installed using pip via
+### Overview of the new package muonicPro ([``develop2``](https://github.com/CosmicLabDESY/muonic/tree/develop2))
 
-`pip install muonic`.
+Migration to python3 is mostly done.
 
-Pip will try to install all necessary dependencies as python packages. It can happen that all packages are already installed, e.g. as Ubuntu packages, but not in the same version as available in PyPI. In this case, pip will install the newest version from pypi. If you would like to avoid this, make sure that all dependencies are met and use
-`pip install --no-deps muonic`.
+- ``muonic.muonicPro``
 
-###installation with the setup.py script
+  - ``muonic.daq.QnetCard``
 
-Run the following command in the directory where you checked out the source code:
+    Thread1 (Hardware near communication), Thread2 (distributor of messages from queue in Thread1)
 
-`python setup.py install`
+    - ``muonic.daq.api.Provider``  (Thread1)
+    - ``muonic.analysis.distributor`` (Thread2) (A daemon to distribute the messages from the low-level communication. Belong this message to settings or to data.) 
+    - ``muonic.daq.api.DAQClient``
+    - ``muonic.daq.QnetCardSettings`` (Provides functions to set up the card, the low level commands shall be coded here and provide, functionality such that the user, does not need to look at the command table. It also manages the settings-storage in the background. If a setting is changed on the card for some reason it sends the new configuration. This will be passed into a queue in Thread1. A second thread Thread2 classifies the msg as a settings information and will update the settings-variable.)
 
-This will install the muonic package into your python site-packages directory and also the executuables `muonic` and `which_tty_daq` to your usr/bin directory. It also generates a new directory in your home dir: `$HOME/muonic_data`
+  - ``muonic.analyses.<class>``:
+    Depending on the needed analyses, most likely the ``PulseExtractor`` can be recycled here, a class is needed to interpret the data messages passed from the distributor thread Thread2. There is also GPS, temperature, and pressure data, which needs to be interpreted.
 
-The use of python-virtualenv is recommended.
+  - ``muonic.measurements.<class>``:
 
-###installing muonic without the setup script
+    Classes for different measurements like velocity, decay, and rate measurements. Every measurement needs to start it's own threat with multiprocessing.
 
-You just need the script `./bin/muonic` to the upper directory and rename it to `muonic.py`.
-You can do this by typing
+In ``develop2`` there are now two modules. The "old one" muonic and this new one muonicPro. Both can be imported into pyhton3. The scripts in muonic have a bit more comments now. So if you wish to understand / reverse-engineer the old code use these scripts. The muonic program should still run with this comment, to python3 migrated code.
 
-`mv bin/muonic muonic.py`
+### Things needs to be done:
 
-while being in the muonic main directory.
+- The distributer daemon must be written. To start with this one has to understand all the possible outcome of the card and find criteria to distribute the different messages. 
+- Heritage. The classes are not properly inherited, such that the upper class has got the "inherited" class as attribute, which was copied from the former version, but in-transparent. Please make sure that the individual threads are not initialized two times. That means proper inheritance will not be possible every time.
+- It could be that the QnetCardSettings get its own thread, which get filled its queue from the distributer. An other option would be, that the distributer get the QnetCardSettings inheritated and calls the needed functions. This could blow up this class.
+- Same for the pulse analyzing.
+- Measurements needs to be written. (It is not recommended to reverse engineer the algorithms from ``release2``, as the measurements are described in the manuals.)
+- Maybe a plotting class to provide visualization with ``matplotlib``. Could also be done with multiprocessing.
+- Generating the new QT5-based GUI with the Graphical-IDE ``Qt Designer``. 
+  [QT5 docs](https://doc.qt.io/qt-5/qtgui-index.html) [QT Designer](https://doc.qt.io/qt-5/qtdesigner-manual.html)
+  - There is already a .ui file created by a collogue. Ask who. It might only be finished/modified.
+- Building an upper layer for muonicPro, which connects the functionality of the stand-alone method with the GUI.
 
-Afterwards you have to create the folder `muonic_data` in your home directory.
+### The Idea of a web-based muonic
 
-`mkdir ~/muonic_data`
+The advantage is that it could run platform independent without installation. If there is a new version available, the user does not need to worry. 
+**Problems**:
 
-###preparing your computer to connect to the DAQ card
+- The Web-Browser needs access to the usb-ports and must send the messages to the server, which uses this as input. It is not clear, how the varying ping time affect the measurements. How the web-browser can have access to the usb-ports seems to me a non-trivial problem.
+- There is no template for the GUI as it already exists for QT5.
+- The server needs to provide python-sessions for different clients. If the data stream of some hundred students around the world could lower the systems speed in a manner, that it might effect the measurements, because timing resolution is important. It is not clear yet for me if the system time is used in the data analyzing part.
+- What happens, if the connection is unstable for some milliseconds in a measurement which takes days? What is likely. Sub-routines must be implemented to catch that.
 
-The DAQ card uses a serial connection via the USB port. If muonic does not find the DAQ card even though it is connected to the computer, try adding the user that you use for login to the group dialout:
+**Advantages by using the local machine**:
 
-`sudo adduser username dialout`.
+- No ping.
+- No problem with resources.
+- Stable connection over days.
 
+The current way of installation is installing all dependencies like qt and the needed python packages, making a copy of the repository, and running setup.py. The is no automatized way for making updates. 
+My suggestion is to go a step further and generate a python package, which can be provided by Pip. If one has a module like the above software (a folder with the scripts and a file called ``__init__.py``, it was called a package here but is only a module), creating a package for pip is straight forward  and explained here: [Packaging](https://packaging.python.org/).
+It would also allow to install the dependencies and versioning, as well as doing updates with pip.
+Everything the user would have to do is:
 
+```python
+pip3 install muonic
+```
 
-How to use muonic
-========================
+If python3 and its pip is installed. 
 
-start muonic
-------------
-
-If you have setup muonic via the provided setup.py script or if you have put the package somewhere in your PYTHONPATH, simple call from the terminal
-
-``muonic [OPTIONS] xy``
-
-where ``xy`` are two characters which you can choose freely. You will find this two letters occurring in automatically generated files, so that you can identify them.
-
-For help you can call
-
-``muonic --help``
-
-which gives you also an overview about the options::
-
-    muonic
-
-    [OPTIONS]
-
-    -s, --sim
-    use the simulation mode of muonic (no real data, so no physics behind!). This should only used for testing and developing the software
-
-    -d, --debug
-    debug mode. Use it to generate more log messages on the console.
-
-    -t sec
-    change the time window for the calculation of the rates. If you expect very low rates, you might consider to change it to larger values.
-    default is 5 seconds.
-
-    -p, --writepulses
-    automatically write a file with pulse times in a non hexadecimal representation
-
-    -n, --nostatus
-    suppress any status messages in the output raw data file, might be useful if you want use muonic only for data taking and use another script afterwards for analysis.
-
-	-v, --version
-	just print the current version of muonic
-
-	-P DATA_PATH
-	define an output directory for the files written by muonic. Default is $HOME/muonic_data
-
-
-Saving files with muonic
-------------------------
-
-All files which are saved by muonic are ASCII files. The filenames are as follows:
-
-*currently all files are saved under $HOME/muonic_data. This directory must exist. If you use the provided setup script, it is created automatically*
-
-`YYYY-MM-DD_HH-MM-SS_TYPE_MEASUREMENTTME_xy`
-
-* `YYYY-MM-DD` is the date of the measurement start
-* `HH-MM-SS` is the GMT time of the measurement start
-* `MEASUREMENTTIME` if muonic is closed, each file gets is corresponding measurement time (in hours) assigned.
-* `xy` the two letters which were specified at the start of muonic
-* `TYPE` can be one of the following:
-	* `DAQ` the raw ASCII output of the DAQ card, this is only saved if the 'Save to file' button in clicked in the 'Daq output' window of muonic. See the documentation of the [DAQ card (pdf)](http://crd.yerphi.am/files/QNetdescription.pdf) for more information on the output.
-	* `R` is an automatically saved ASCII file which contains the rate measurement data, this can then be used to plot with e.g. gnuplot later on. Rates as well as total counts for all channels and the trigger are given in pre-defined time intervals (default: 5 seconds).
-	* `D` specifies a file with times of registered muon decays. This file is automatically saved if a muon decay measurement is started.
-	* `V` stands for the output of a muon velocity measurement. Each line contains the measurement time and the measured flight time of a muon event.
-	* `P` stands for a file which contains a non-hex representation of the registered pulses. This file is only save if the `-p` option is given at the start of muonic
-
-Representation of the pulses:
-
-`(69.15291364, [(0.0, 12.5)], [(2.5, 20.0)], [], [])`
-
-This is a python-tuple which contains the trigger time of the event and four lists with more tuples. The lists represent the channels (0-3 from left to right) and each tuple stands for a leading and a falling edge of a registered pulse. To get the exact time of the pulse start, one has to add the pulse LE and FE times to the triggertime
-
-_For calculation of the LE and FE pulse times a TMC is used. It seems that for some DAQs cards a TMC bin is 1.25 ns wide, although the documentation says something else.
-   The trigger time is calculated using a CPLD which runs in some cards at 25MHz, which gives a bin width of the CPLD time of 40 ns.
-   Please keep this limited precision in mind when adding CPLD and TMC times._
-
-
-Performing measurements with muonic
------------------------------------
-
-###Setting up the DAQ
-
-For DAQ setup it is recommended to use the 'settings' menu, although everything can also be setup via the command line in the DAQ output window (see below.)
-Muonic translates the chosen settings to the corresponding DAQ commands and sends them to the DAQ. So if you want to change things like the coincidence time window, you have to issue the corresponding DAQ command in the DAQ output window.
-
-Two menu items are of interest here:
-* Channel Configuration: Enable the channels here and set coincidence settings. A veto channel can also be specified.
-
-*You have to ensure that the check boxes for the channels you want to use are checked before you leave this dialogue, otherwise the channel gets deactivated.*
-
-*The coincidence is realized by the DAQ in a way that no specific channels can be given. Instead this is meant as an 'any' condition.
-   So 'twofold' means that 'any two of the enabled channels' must claim signal instead of two specific ones (like 1 and 2).*
-
-*Measurements at DESY indicated that the veto feature of the DAQ card might not work properly in all cases.*
-
-* Thresholds: For each channel a threshold (in milliVolts) can be specified. Pulse which are below this threshold are rejected. Use this for electronic noise supression. One can use for the calibration the rates in the muon rates tab.
-
-**A proper calibration of the individual channels is the key to a successful measurement!**
-
-
-###Muon Rates
-
-In the first tab a plot of the measured muon rates is displayed. A trigger rate is only shown if a coincidence condition is set.
-In the block on the right side of the tab, the average rates are displayed since the measurement start. Below you can find the number of counts for the individual channels. On the bottom right side is also the maximum rate of the measurement. The plot and the shown values can be reset by clicking on 'Restart'. The 'Stop' button can be used to temporarily hold the plot to have a better look at it.
-
-*You can use the displayed 'max rate' at the right bottom to check if anything with the measurement went wrong.*
-
-*Currently the plot shows only the last 200 seconds. If you want to have a longer time range, you can use the information which is automatically stored in the 'R' file (see above).*
-
-###Muon Lifetime
-
-A lifetime measurement of muons can be performed here. A histogram of time differences between succeeding pulses in the same channel is shown. It can be fit with an exponential by clicking on 'Fit!'. The fit lifetime is then shown in the above right of the plot, for an estimate on the errors you have to look at the console.
-
-The measurement can be activated with the check box. In the following popup window the measurement has to be configured. It depends mainly on the detector you use and influences the quality of the measurement. The signal is accepted if more than one pulse appears in the single pulse channel or if one pulse appears in the single pulse channel and >= 2 pulses appear in the double pulse channel. The coincidence time is set to ?microseconds for this measurement. The signal are vetoed with the veto channel: only events are accepted if no pulse occurs there. If the self veto is activated it accepts only events if:
-* more than one pulse appears in the single pulse channel and none pulse is measured in the double pulse channel
-* one pulse in the single pulse channel appears and exactly two pulses in the double pulse channel.
-
-**The error of the fit might be wrong!**
-
-###Muon Velocity
-
-In this tab the muon velocity can be measured. The measurement can be started with activating the check box. In the following popup window it has to be configured. The muon velocity widget will measure the signal times between two given channels which can be interpreted as the flight time of the muon from one detector plate to the other. The resulting histogram shows the distribution of flight times. The mean flight time can be calculated by using the fit button to fit a gaussian distribution.
-
-**The error of the fit might be wrong!**
-
-###Pulse Analyzer
-
-The pulse analyzer shows distributions of the pulse widths for each channel that is activated.
-
-###GPS Output
-
-In this tab you can read out the GPS information of the DAQ card. It requires a connected GPS antenna. The information are summarized on the bottom in a text box, from where they can be copied.
-
-###Raw DAQ data
-
-The last tab of muonic displays the raw ASCII DAQ data.
-This can be saved to a file. If the DAQ status messages should be suppressed in that file, the option `-n` should be given at the start of muonic.
-The edit field can be used to send messages to the DAQ. For an overview over the messages, look here (link not available yet!).
-To issue such an command periodically, you can use the button 'Periodic Call'
-
-_The two most important DAQ commands are 'CD' ('counter disable') and 'CE' ('counter enable'). Pulse information is only given out by the DAQ if the counter is set to enabled. All pulse related features may not work properly if the counter is set to disabled._
+From my side I would suggest to finish the current update project to qt5, because I expect that there are no already solved problems, so far.
