@@ -103,7 +103,7 @@ class  QnetCardSettings():
         if not os.path.isdir(self.path_to_save):
             self.logger.info('Did not found muonic\'s settings folder.')
             os.path.mkdir(self.path_to_save)
-            self.logger.info('Created: %s'%muonic.path_to_save)
+            self.logger.info('Created: %s'%muonicPro.path_to_save)
 
         if name is None:
             name = datetime.today().strftime('%Y-%m-%d')
@@ -548,7 +548,7 @@ class  QnetCardSettings():
         Threefold: [False, False, True, False]
         Fourfold: [False, False, False, True]
         '''
-        if not in range(1,5):
+        if not n in range(1,5):
             print('Argument needs to be between 1 and 4.')
             return
 

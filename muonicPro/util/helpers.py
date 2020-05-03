@@ -5,7 +5,7 @@ from __future__ import print_function
 import os
 import shutil
 
-from muonic import DATA_PATH
+from muonicPro import DATA_PATH
 
 _data_path = DATA_PATH
 

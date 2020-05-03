@@ -1,6 +1,6 @@
 
 
-def get_configured_logger()
+def getConfiguredLogger(verbose=False):
     '''
     A function that provides the configuration for the logging object.
     '''

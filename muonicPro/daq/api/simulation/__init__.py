@@ -1,1 +1,1 @@
-from .simulation import DAQSimulation
+from .simulation import DAQSimulationConnection

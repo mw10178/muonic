@@ -2,8 +2,6 @@
 The muonicPro package
 """
 from os import getenv, path, pardir
-from .daq import QnetCard
-from .muonicpro import MuonicPro
 
 
 AUTHORS = [
@@ -37,3 +35,7 @@ __manual_hosted_at__ = ("http://physik-begreifen-zeuthen.desy.de/angebote/" +
                         "kosmische_teilchen/schuelerexperimente/" +
                         "cosmo_experiment/index_ger.html")
 __license__ = "GPLv3"
+
+
+from .muonicpro import MuonicPro
+from .daq import QnetCard

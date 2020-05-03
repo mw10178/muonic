@@ -17,7 +17,7 @@ except ImportError:
     # DAQMissingDependencyError will be raised when trying to use zmq
     pass
 
-from .exceptions import DAQMissingDependencyError
+from muonicPro.daq.exceptions import DAQMissingDependencyError
 
 
 class DAQSimulation(object):
@@ -57,7 +57,8 @@ class DAQSimulation(object):
 
         :returns: None
         """
-        if isinstance(self._daq, file) and not self._daq.closed:
+        from _io import TextIOWrapper
+        if isinstance(self._daq, TextIOWrapper) and not self._daq.closed:
             self._daq.close()
 
     def _physics(self):

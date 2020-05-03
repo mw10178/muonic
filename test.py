@@ -1,4 +1,4 @@
 #!/usr/bin/ipython3 -i
 
-import muonic
+import muonicPro
 m = muonic.MuonicPro()
