@@ -1127,7 +1127,7 @@ class VelocityWidget(BaseWidget):
                 binning=self.binning, fitrange=self.fit_range)
 
         if fit_results is not None:
-            self.plot_canvas.show_fit(*fit_results)
+            self.plot_canvas.show_fit_gauss(*fit_results)
 
     def on_fit_range_clicked(self):
         """
@@ -1447,7 +1447,7 @@ class DecayWidget(BaseWidget):
                           binning=self.binning, fitrange=self.fit_range)
 
         if fit_results is not None:
-            self.plot_canvas.show_fit(*fit_results)
+            self.plot_canvas.show_fit_exp(*fit_results)
 
     def on_fit_range_clicked(self):
         """
