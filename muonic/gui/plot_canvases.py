@@ -185,7 +185,98 @@ class BaseHistogramCanvas(BasePlotCanvas):
         self.ax.patches = self.hist_patches
         self.fig.canvas.draw()
 
-    def show_fit(self, bin_centers, bincontent, fitx, decay, p, covar,
+    def show_fit_exp(self, bin_centers, bincontent, fitx, decay, p, covar,
+                 chisquare, nbins):
+        """
+        Plot the fit onto the diagram
+
+        :param bin_centers: bin centers
+        :param bincontent: bincontents
+        :param fitx: the fit
+        :type fitx: numpy.ndarray
+        :param decay: decay function
+        :type decay: function
+        :param p: fit parameters
+        :type p: list
+        :param covar: covariance matrix
+        :type covar: matrix
+        :param chisquare: chi-squared
+        :type chisquare: float
+        :param nbins: number of bins
+        :type nbins: int
+        :returns: None
+        """
+
+        # clears a previous fit from the canvas
+        self.ax.lines = []
+        self.ax.plot(bin_centers, bincontent, "b^", fitx, decay(p, fitx), "b-")
+
+        ## print fit function formula start
+        #x = bin_centers
+        #y = bincontent
+        #poly = pl.polyfit(x, y, 2)
+
+        #def poly2latex(poly, variable="x", width=2):
+        #  t = ["{0:0.{width}f}"]
+        #  t.append(t[-1] + " {variable}")
+        #  t.append(t[-1] + "^{1}")
+
+        #  def f():
+        #    for i, v in enumerate(reversed(poly)):
+        #      idx = i if i < 2 else 2
+        #      yield t[idx].format(v, i, variable=variable, width=width)
+
+        #  return "${}$".format("+".join(f()))
+
+        #self.ax.plot(x, y, "o", alpha=0.4)
+        #x2 = np.linspace(-2, 2, 100)
+        #y2 = np.polyval(poly, x2)
+        #self.ax.plot(x2, y2, lw=2, color="r")
+        #self.ax.text(x2[5], y2[5], poly2latex(poly), fontsize=16)
+        # print fit function formula end
+
+        # FIXME: this seems to crop the histogram
+        # self.ax.set_ylim(0,max(bincontent)*1.2)
+        self.ax.set_xlabel(self.xlabel)
+        self.ax.set_ylabel(self.ylabel)
+
+        # compute the errors on the fit, nb that this calculation assumes that
+        # scipy.optimize.leastsq was used
+        error = []
+        for i in range(len(p)):
+            try:
+                error.append(np.absolute(covar[i][i]) ** 0.5)
+            except Exception:
+                error.append(0.00)
+
+        perr_leastsq = np.array(error)
+
+        try:
+            if chisquare / (nbins-len(p)) > 10000:
+                self.ax.legend(("Data", ("Fit: (%4.2f $\pm$ %4.2f) %s \n" +
+                                     " chisq/ndf=%.4g") %
+                            (p[1], perr_leastsq[2], self.dimension,
+                             chisquare / (nbins-len(p)))), loc=1)
+            self.ax.legend(("Data", ("Fit: (%4.2f $\pm$ %4.2f) %s \n" +
+                                     " chisq/ndf=%4.2f") %
+                            (p[1], perr_leastsq[2], self.dimension,
+                             chisquare / (nbins-len(p)))), loc=1)
+        except TypeError:
+            if chisquare / (nbins-len(p)) > 10000:
+                self.ax.legend(("Data", ("Fit: (%4.2f $\pm$ %4.2f) %s \n" +
+                                     " chisq/ndf=%.4g") %
+                            (p[2], perr_leastsq[2], self.dimension,
+                             chisquare / (nbins-len(p)))), loc=1)
+            self.logger.warn("Covariance Matrix is 'None', could " +
+                             "not calculate fit error!")
+            self.ax.legend(("Data", ("Fit: (%4.2f) %s \n " +
+                                     " chisq/ndf=%4.2f") %
+                            (p[2], self.dimension,
+                             chisquare / (nbins-len(p)))), loc=1)
+
+        self.fig.canvas.draw()
+
+    def show_fit_gauss(self, bin_centers, bincontent, fitx, decay, p, covar,
                  chisquare, nbins):
         """
         Plot the fit onto the diagram
